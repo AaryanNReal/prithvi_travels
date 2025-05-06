@@ -82,9 +82,7 @@ export default function TagPage() {
               isFeatured: data.isFeatured
             });
 
-            if (!tagName) {
-              setTagName(tagMatchEntry.name);
-            }
+            
           }
         });
 
