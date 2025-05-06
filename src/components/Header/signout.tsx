@@ -1,62 +1,110 @@
-import React, { useState , useEffect , useRef} from "react";
+import React, { useState, useEffect } from "react";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/app/lib/firebase"; // Adjust path to your Firebase config
 
 interface DropdownMenuItem {
   label: string;
   href?: string;
-  onClick?: () => void; // Optional onClick handler
+  onClick?: () => void;
 }
 
 interface DropdownMenuProps {
-  label: string;
   items: DropdownMenuItem[];
 }
 
-const DropdownMenu: React.FC<DropdownMenuProps> = ({ label, items }) => {
+const DropdownMenu: React.FC<DropdownMenuProps> = ({ items }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [userName, setUserName] = useState("Account");
+  const [loading, setLoading] = useState(true);
+  let closeTimeout: NodeJS.Timeout;
 
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-  };
-  const [openIndex, setOpenIndex] = useState(-1);
-  const handleSubmenu = (index) => {
-    if (openIndex === index) {
-      setOpenIndex(-1);
-    } else {
-      setOpenIndex(index);
-    }
-  };
-const dropdownRef = useRef(null);
-
+  // Fetch user data from Firebase
   useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        // Only run if the left mouse button was clicked
-        if (event.button !== 0) return;
-      
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-          setOpenIndex(-1); // Close the dropdown
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          const userData = userDoc.exists() ? userDoc.data() : null;
+          setUserName(user.displayName || userData?.name || "Account");
+        } catch (error) {
+          console.error("Error fetching user:", error);
+          setUserName("Account");
         }
-      };
-      
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }, []);
+      } else {
+        setUserName("Account");
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Auto-close dropdown after delay (3 seconds)
+  const startCloseTimer = () => {
+    if (closeTimeout) clearTimeout(closeTimeout);
+    closeTimeout = setTimeout(() => setIsOpen(false), 200);
+  };
+
+  const stopCloseTimer = () => {
+    if (closeTimeout) clearTimeout(closeTimeout);
+  };
+
+  const handleMouseEnter = () => {
+    setIsOpen(true);
+    stopCloseTimer(); // Cancel auto-close if user re-enters
+  };
+
+  const handleMouseLeave = () => {
+    startCloseTimer(); // Start auto-close countdown
+  };
+
+  if (loading) {
+    return (
+      <div className="relative inline-block text-left">
+        <button className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300">
+          Loading...
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative inline-block text-left">
-      {/* Dropdown Button */}
+    <div
+      className="relative inline-block text-left"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Dropdown Button (Original Style) */}
       <button
-        onClick={toggleDropdown}
-        className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        className={`flex items-center justify-between px-4 py-2 rounded-md border border-gray-300 shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors ${
+          isOpen ? "bg-gray-50 ring-2 ring-blue-100" : ""
+        }`}
       >
-        {label}
+        {/* Original User Icon */}
+        <div className="flex items-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5 mr-2 text-gray-600"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M10 12a5 5 0 100-10 5 5 0 000 10zm-7 8a7 7 0 0114 0H3z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <span>{userName}</span>
+        </div>
+        {/* Chevron Icon */}
         <svg
-          className="-mr-1 ml-2 h-5 w-5"
+          className={`ml-2 h-5 w-5 text-gray-500 transition-transform ${
+            isOpen ? "rotate-180" : ""
+          }`}
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"
           fill="currentColor"
-          aria-hidden="true"
         >
           <path
             fillRule="evenodd"
@@ -66,9 +114,13 @@ const dropdownRef = useRef(null);
         </svg>
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Enhanced Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+        <div
+          className="absolute right-0 mt-1 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 transition-all duration-150 ease-out"
+          onMouseEnter={stopCloseTimer} // Pause auto-close when hovering menu
+          onMouseLeave={startCloseTimer} // Resume auto-close when leaving menu
+        >
           <div className="py-1">
             {items.map((item, index) => (
               <a
@@ -76,11 +128,12 @@ const dropdownRef = useRef(null);
                 href={item.href || "#"}
                 onClick={(e) => {
                   if (item.onClick) {
-                    e.preventDefault(); // Prevent navigation if onClick is provided
+                    e.preventDefault();
                     item.onClick();
                   }
+                  setIsOpen(false); // Close immediately on click
                 }}
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
               >
                 {item.label}
               </a>

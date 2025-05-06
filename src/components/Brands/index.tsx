@@ -18,7 +18,7 @@ const Brands = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
-  const [itemsPerPage, setItemsPerPage] = useState(3); // Default to 3 items per page
+  const [itemsPerPage, setItemsPerPage] = useState(4); // Default to 3 items per page
   const autoPlayInterval = 3000; // 3 seconds
 
   // Adjust itemsPerPage based on screen size
@@ -29,7 +29,7 @@ const Brands = () => {
       } else if (window.innerWidth < 1024) {
         setItemsPerPage(2); // 2 items for medium screens
       } else {
-        setItemsPerPage(3); // 3 items for large screens
+        setItemsPerPage(4); // 3 items for large screens
       }
     };
 
@@ -150,48 +150,7 @@ const Brands = () => {
             </div>
 
             {/* Navigation Buttons */}
-            <button
-              onClick={prevSlide}
-              className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white text-gray-800 p-3 rounded-full shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed z-10"
-              disabled={currentIndex === 0 || isAnimating}
-              aria-label="Previous slide"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={nextSlide}
-              className="absolute right-0 top-1/2 transform -translate-y-1/2 bg-white text-gray-800 p-3 rounded-full shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed z-10"
-              disabled={currentIndex + itemsPerPage >= countries.length || isAnimating}
-              aria-label="Next slide"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
+            
           </div>
 
           {/* Page Indicator */}

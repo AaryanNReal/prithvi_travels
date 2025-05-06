@@ -205,7 +205,7 @@ const Header = () => {
               <div className="flex items-center justify-end pr-16 lg:pr-0">
                 {user ? (
                   <SignOutDropdown
-                    label="My Account"
+                    
                     items={[
                       { label: "Profile", href: "/profile" },
                       { label: "My Bookings", href: "/tours" },
