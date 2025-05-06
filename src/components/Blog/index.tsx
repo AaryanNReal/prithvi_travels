@@ -104,7 +104,7 @@ export default function FeaturedPosts() {
   return (
     <section className="mb-12 m-10">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Featured Posts</h2>
-      <div className="grid grid-cols-3 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1 gap-6">
         {featuredPosts.map((post) => (
           <BlogCard
             key={post.id}

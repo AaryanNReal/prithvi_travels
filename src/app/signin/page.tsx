@@ -33,6 +33,7 @@ const SigninPage = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       console.log("✅ Logged in as:", userCredential.user.email);
       return userCredential.user;
+      
     } catch (error) {
       console.error("❌ Email login error:", error);
       throw error;
