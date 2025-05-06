@@ -6,6 +6,7 @@ import { signInWithPopup, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, provider } from "../lib/firebase"; 
 import { doc, setDoc } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 const SignupPage = () => {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -15,6 +16,7 @@ const SignupPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const router = useRouter();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   // Handle phone number changes from the MobileNumberInput component
   const handlePhoneChange = (value) => {
@@ -77,7 +79,7 @@ const handleSignup = async () => {
     
     setSuccess(`Account successfully created for ${email}`);
     // You could redirect the user or show a success message
-    
+    router.push("/");
     console.log("✅ Account created for:", user.email);
   } catch (error) {
     console.error("❌ Sign-up error:", error.message);
@@ -100,6 +102,7 @@ const handleSignup = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+      router.push("/");
       console.log("Logged in as:", user.displayName);
     } catch (error) {
       console.error("Sign-in error:", error);
