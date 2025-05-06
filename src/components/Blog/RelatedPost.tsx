@@ -1,37 +1,91 @@
-import Image from "next/image";
-import Link from "next/link";
+// RelatedPosts.tsx
+'use client';
 
-const RelatedPost = ({
-  image,
-  slug,
-  title,
-  date,
-}: {
-  image: string;
-  slug: string;
+import { useEffect, useState } from 'react';
+import { db } from '@/app/lib/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import Link from 'next/link';
+import Image from 'next/image';
+
+interface BlogPost {
+  id: string;
   title: string;
-  date: string;
-}) => {
+  description?: string;
+  category: {
+    slug: string;
+    name: string;
+  };
+  image?: {
+    imageURL: string;
+    altText?: string;
+  };
+}
+
+interface RelatedPostsProps {
+  currentPostTitle: string;
+  currentCategorySlug: string;
+}
+
+const RelatedPosts = ({ currentPostTitle, currentCategorySlug }: RelatedPostsProps) => {
+  const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
+
+  useEffect(() => {
+    const fetchRelatedPosts = async () => {
+      try {
+        const postsRef = collection(db, 'blogPosts');
+        const q = query(postsRef, where('category.slug', '==', currentCategorySlug));
+        const querySnapshot = await getDocs(q);
+
+        const filteredPosts: BlogPost[] = querySnapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              title: data.title,
+              description: data.description,
+              category: data.category,
+              image: data.image,
+            };
+          })
+          .filter(post => post.title !== currentPostTitle);
+
+        setRelatedPosts(filteredPosts);
+      } catch (error) {
+        console.error('Error fetching related posts:', error);
+      }
+    };
+
+    fetchRelatedPosts();
+  }, [currentPostTitle, currentCategorySlug]);
+
+  if (relatedPosts.length === 0) return null;
+
   return (
-    <div className="flex items-center lg:block xl:flex">
-      <div className="mr-5 lg:mb-3 xl:mb-0">
-        <div className="relative  overflow-hidden rounded-md sm:h-[75px] sm:w-[85px]">
-          <Image src={image} alt={title} fill />
-        </div>
-      </div>
-      <div className="w-full">
-        <h5>
-          <Link
-            href={slug}
-            className="mb-[6px] block text-base font-medium leading-snug text-black hover:text-primary dark:text-white dark:hover:text-primary"
-          >
-            {title}
+    <div className="mt-10">
+      <h2 className="text-xl font-semibold mb-4">Recommended Posts</h2>
+      <div className="grid md:grid-cols-2 gap-6">
+        {relatedPosts.map(post => (
+          <Link key={post.id} href={`/blog/${post.id}`}>
+            <div className="border rounded-xl overflow-hidden shadow hover:shadow-lg transition">
+              {post.image?.imageURL && (
+                <Image
+                  src={post.image.imageURL}
+                  alt={post.image.altText || post.title}
+                  width={400}
+                  height={200}
+                  className="w-full h-48 object-cover"
+                />
+              )}
+              <div className="p-4">
+                <h3 className="text-lg font-bold">{post.title}</h3>
+                <p className="text-sm text-gray-600">{post.description?.slice(0, 100)}...</p>
+              </div>
+            </div>
           </Link>
-        </h5>
-        <p className="text-xs font-medium text-body-color">{date}</p>
+        ))}
       </div>
     </div>
   );
 };
 
-export default RelatedPost;
+export default RelatedPosts;

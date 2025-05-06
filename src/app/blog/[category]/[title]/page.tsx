@@ -8,6 +8,7 @@ import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import Link from 'next/link';
 import Image from 'next/image';
 import { format } from 'date-fns';
+import RelatedPostsSidebar from '@/components/RelatedPostsSidebar';
 
 // Custom reading time calculator
 const calculateReadingTime = (text: string) => {
@@ -121,8 +122,9 @@ export default function BlogPostPage() {
   const readTime = calculateReadingTime(blog.content || '');
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 mt-28 sm:px-6 lg:px-8">
-      <article className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+    <div className="max-w-4xl mx-auto px-4 py-8 mt-28 sm:px-6 lg:px-8 lg:flex lg:justify-between gap-10">
+     
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
         {/* Featured Image */}
         {blog.image?.imageURL && (
           <div className="relative h-64 md:h-80 lg:h-96 w-full">
@@ -239,7 +241,32 @@ export default function BlogPostPage() {
             </Link>
           </div>
         </div>
-      </article>
+        
+      </div>
+      <div className="lg:hidden mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden p-6">
+      {blog && (
+        <RelatedPostsSidebar 
+          currentPostId={blog.id}
+          categorySlug={categorySlug}
+        />
+      )}
     </div>
+
+    {/* Desktop sidebar (shown on the side on large screens) */}
+    <div className="hidden lg:block lg:w-1/3 lg:float-right">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden p-6 sticky top-28">
+        {blog && (
+          <RelatedPostsSidebar 
+            currentPostId={blog.id}
+            categorySlug={categorySlug}
+          />
+        )}
+      </div>
+    </div>
+
+    {/* Clear floats */}
+    <div className="clear-both"></div>
+  </div>
+  
   );
 }

@@ -67,7 +67,7 @@ const Hero = () => {
   const prevSlide = () => setCurrentSlide((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
 
   return (
-    <div className="relative mt-24 h-150 w-screen overflow-hidden ">
+    <div className="relative mt-24 h-[calc(100vh-96px)] w-screen overflow-hidden"> {/* Adjusted height */}
       {/* Image Slider */}
       <div className="absolute inset-0">
         {loading ? (
@@ -94,7 +94,7 @@ const Hero = () => {
                   src={slide.image}
                   alt={slide.alt}
                   fill
-                  className="object-cover"
+                  className="object-contain" // Ensures the whole image is visible
                   priority={index === 0}
                   unoptimized={true}
                   onError={(e) => {
@@ -124,7 +124,7 @@ const Hero = () => {
             </button>
             <button
               onClick={nextSlide}
-              className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/30 p-3 text-white backdrop-blur-sm transition-all hover:bg-white/50"
+              className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/30 p-3 text-black backdrop-blur-sm transition-all hover:bg-white/50"
               aria-label="Next slide"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -136,7 +136,7 @@ const Hero = () => {
                 <button
                   key={index}
                   onClick={() => goToSlide(index)}
-                  className={`h-3 w-3 rounded-full transition-all ${
+                  className={`h-3 w-3  rounded-full transition-all ${
                     index === currentSlide ? "w-8 bg-primary" : "bg-white/50"
                   }`}
                   aria-label={`Go to slide ${index + 1}`}

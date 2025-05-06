@@ -18,9 +18,28 @@ const Brands = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
-  const itemsPerPage = 3;
-  const totalPages = Math.ceil(countries.length / itemsPerPage);
+  const [itemsPerPage, setItemsPerPage] = useState(3); // Default to 3 items per page
   const autoPlayInterval = 3000; // 3 seconds
+
+  // Adjust itemsPerPage based on screen size
+  useEffect(() => {
+    const updateItemsPerPage = () => {
+      if (window.innerWidth < 640) {
+        setItemsPerPage(1); // 1 item for small screens
+      } else if (window.innerWidth < 1024) {
+        setItemsPerPage(2); // 2 items for medium screens
+      } else {
+        setItemsPerPage(3); // 3 items for large screens
+      }
+    };
+
+    updateItemsPerPage(); // Set initial value
+    window.addEventListener("resize", updateItemsPerPage); // Update on resize
+
+    return () => window.removeEventListener("resize", updateItemsPerPage);
+  }, []);
+
+  const totalPages = Math.ceil(countries.length / itemsPerPage);
 
   const nextSlide = () => {
     if (currentIndex + itemsPerPage < countries.length && !isAnimating) {
@@ -61,12 +80,6 @@ const Brands = () => {
       if (interval) clearInterval(interval);
     };
   }, [autoPlay, currentIndex, isAnimating]);
-
-  // Calculate which items to display
-  const visibleCountries = countries.slice(
-    currentIndex,
-    currentIndex + itemsPerPage
-  );
 
   // Calculate current page for indicator
   const currentPage = Math.floor(currentIndex / itemsPerPage) + 1;
@@ -112,7 +125,7 @@ const Brands = () => {
                 {countries.map((country, index) => (
                   <div
                     key={index}
-                    className="flex-shrink-0 w-1/3 px-3"
+                    className="flex-shrink-0 px-3"
                     style={{ flexBasis: `${100 / itemsPerPage}%` }}
                   >
                     <div className="relative h-64 bg-white rounded-lg shadow-lg border border-gray-100 dark:bg-gray-700 dark:border-gray-600 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] overflow-hidden group">
