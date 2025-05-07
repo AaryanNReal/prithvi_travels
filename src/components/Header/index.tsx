@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
-import { onAuthStateChanged, signOut, signInWithCustomToken } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase"; // Adjust the path to your Firebase config
 import menuData from "./menuData";
 import SignOutDropdown from "./signout";
@@ -45,46 +45,10 @@ const Header = () => {
 
   // Authentication state
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Auto-login function
-  const attemptAutoLogin = async () => {
-    try {
-      // Check for token in localStorage or cookies
-      const token = localStorage.getItem('firebaseAuthToken');
-      if (token) {
-        // Attempt to sign in with the stored token
-        await signInWithCustomToken(auth, token);
-        console.log("✅ Auto-login successful");
-      }
-    } catch (error) {
-      console.error("❌ Auto-login failed:", error);
-      // Clear invalid token
-      localStorage.removeItem('firebaseAuthToken');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    // First attempt auto-login
-    attemptAutoLogin();
-
-    // Then set up auth state listener
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      
-      // Store the token if user is logged in
-      if (currentUser) {
-        currentUser.getIdToken().then((token) => {
-          localStorage.setItem('firebaseAuthToken', token);
-        });
-      } else {
-        // Remove token if user is logged out
-        localStorage.removeItem('firebaseAuthToken');
-      }
-      
-      if (loading) setLoading(false);
     });
 
     return () => unsubscribe(); // Cleanup subscription on unmount
@@ -94,8 +58,6 @@ const Header = () => {
     try {
       await signOut(auth);
       console.log("✅ Signed out successfully");
-      // Clear the stored token on sign out
-      localStorage.removeItem('firebaseAuthToken');
     } catch (error) {
       console.error("❌ Sign out error:", error);
     }
@@ -119,20 +81,6 @@ const Header = () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
-  if (loading) {
-    return (
-      <header className="header top-0 left-0 z-40 flex w-full items-center absolute bg-transparent">
-        <div className="container">
-          <div className="relative -mx-4 flex items-center justify-between">
-            <div className="w-60 max-w-full px-4 xl:mr-12">
-              {/* Loading skeleton or placeholder */}
-            </div>
-          </div>
-        </div>
-      </header>
-    );
-  }
 
   return (
     <>
@@ -255,32 +203,33 @@ const Header = () => {
                 </nav>
               </div>
               <div className="flex items-center justify-end pr-16 lg:pr-0">
-                {user ? (
-                  <SignOutDropdown
-                    items={[
-                      { label: "Profile", href: "/profile" },
-                      { label: "My Bookings", href: "/tours" },
-                      { label: "Help Desk", href: "/helpdesk" },
-                      { label: "Sign Out", onClick: handleSignOut },
-                    ]}
-                  />
-                ) : (
-                  <>
-                    <Link
-                      href="/signin"
-                      className="text-dark px-7 py-3 text-base font-medium hover:opacity-70 dark:text-white block md:inline-block sm:inline-block"
-                    >
-                      Sign In
-                    </Link>
-                    <Link
-                      href="/signup"
-                      className="ease-in-up shadow-btn hover:shadow-btn-hover bg-primary hover:bg-primary/90 rounded-xs lg:px-8  lg:py-3 md:py-2 text-base font-medium text-white transition duration-300 block md:inline-block sm:inline-block"
-                    >
-                      Sign Up
-                    </Link>
-                  </>
-                )}
-              </div>
+  {user ? (
+    <SignOutDropdown
+      
+      items={[
+        { label: "Profile", href: "/profile" },
+        { label: "My Bookings", href: "/tours" },
+        { label: "Help Desk", href: "/helpdesk" },
+        { label: "Sign Out", onClick: handleSignOut },
+      ]}
+    />
+  ) : (
+    <>
+      <Link
+        href="/signin"
+        className="text-dark px-7 py-3 text-base font-medium hover:opacity-70 dark:text-white block md:inline-block sm:inline-block"
+      >
+        Sign In
+      </Link>
+      <Link
+        href="/signup"
+        className="ease-in-up shadow-btn hover:shadow-btn-hover bg-primary hover:bg-primary/90 rounded-xs lg:px-8  lg:py-3 md:py-2 text-base font-medium text-white transition duration-300 block md:inline-block sm:inline-block"
+      >
+        Sign Up
+      </Link>
+    </>
+  )}
+</div>
             </div>
           </div>
         </div>
