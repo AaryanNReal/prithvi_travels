@@ -35,8 +35,16 @@ const menuData: Menu[] = [
   {
     id: 3,
     title: "Visa Expert",
-    path: "/",
+   
     newTab: false,
+    submenu:[
+      {
+        id:31,
+        title:"Visa Assitance",
+        path:'/',
+        newTab:false
+      }
+    ]
   },
   {
     id: 4,

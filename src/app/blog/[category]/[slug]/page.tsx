@@ -30,7 +30,7 @@ const formatDate = (timestamp: any) => {
 export default function BlogPostPage() {
   const params = useParams();
   const encodedCategory = params.category as string;
-  const encodedTitle = params.title as string;
+  const encodedTitle = params.slug as string;
   const [blog, setBlog] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,7 +49,7 @@ export default function BlogPostPage() {
         const q = query(
           blogsRef,
           where('category.slug', '==', categorySlug),
-          where('title', '==', titleSlug),
+          where('slug', '==', titleSlug),
           limit(1)
         );
 
@@ -186,7 +186,7 @@ export default function BlogPostPage() {
                 {Object.values(blog.tags).map((tag: any) => (
                   <Link 
                     key={tag.slug}
-                    href={`/blog/tags/${tag.slug}`}
+                    href={`/tags/${tag.slug}`}
                     className="px-4 py-2 text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
                     {tag.name}

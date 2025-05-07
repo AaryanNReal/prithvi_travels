@@ -5,6 +5,7 @@ import { ClockIcon, CalendarIcon, ArrowRightIcon } from "@heroicons/react/24/out
 interface BlogCardProps {
   id: string;
   title: string;
+  slug:string;
   description: string;
   content?: string;
   createdAt: string;
@@ -32,6 +33,7 @@ interface BlogCardProps {
 const BlogCard: React.FC<BlogCardProps> = ({
   id,
   title,
+  slug,
   description,
   content = "",
   createdAt,
@@ -65,7 +67,7 @@ const BlogCard: React.FC<BlogCardProps> = ({
 
   return (
     <Link 
-      href={`/blog/${category.slug}/${title}`} 
+      href={`/blog/${category.slug}/${slug}`} 
       className="block group mb-6 hover:no-underline"
       aria-label={`Read more about ${title}`}
     >
