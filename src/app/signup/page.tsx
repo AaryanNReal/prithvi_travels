@@ -4,9 +4,9 @@ import React, { useState } from "react";
 import MobileNumberInput from "@/components/PhoneInput";
 import { signInWithPopup, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, provider } from "../lib/firebase"; 
-import { doc, setDoc } from "firebase/firestore";
-import { Timestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+
 const SignupPage = () => {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -18,94 +18,99 @@ const SignupPage = () => {
   const [success, setSuccess] = useState("");
   const router = useRouter();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  // Handle phone number changes from the MobileNumberInput component
+
   const handlePhoneChange = (value) => {
     setPhoneNumber(value);
   };
 
- // Import Timestamp from Firestore
-
-const handleSignup = async () => {
-  // Reset states
-  setError("");
-  setSuccess("");
-  
-  // Form validation
-  if (!fullName.trim()) {
-    setError("Please enter your full name");
-    return;
-  }
-  
-  if (!email.trim()) {
-    setError("Please enter your email");
-    return;
-  }
-  
-  if (!password) {
-    setError("Please enter a password");
-    return;
-  }
-  
-  if (password.length < 6) {
-    setError("Password must be at least 6 characters");
-    return;
-  }
-  
-  if (!agreeToTerms) {
-    setError("You must agree to the Terms and Conditions");
-    return;
-  }
-  
-  setLoading(true);
-  
-  try {
-    // Create user account
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+  const handleSignup = async () => {
+    setError("");
+    setSuccess("");
     
-    // Create a unique userID (if needed) - this can be derived from other user data or generated
-    const userID = `UID${Math.floor(Math.random() * 10000000000)}`;
-
-    // Store additional user data in Firestore with the required format
-    await setDoc(doc(db, "users", user.uid), {
-      userID, 
-      email,
-      name: fullName, 
-      phone: phoneNumber,
-      createdAt: Timestamp.fromDate(new Date()), // Store timestamp as Firestore's Timestamp
-      updatedAt: Timestamp.fromDate(new Date()), // Store timestamp as Firestore's Timestamp
-      uid: user.uid,
-    });
-    
-    setSuccess(`Account successfully created for ${email}`);
-    // You could redirect the user or show a success message
-    router.push("/");
-    console.log("✅ Account created for:", user.email);
-  } catch (error) {
-    console.error("❌ Sign-up error:", error.message);
-    
-    // Provide user-friendly error messages
-    if (error.code === 'auth/email-already-in-use') {
-      setError("This email is already registered. Please sign in instead.");
-    } else if (error.code === 'auth/invalid-email') {
-      setError("Please enter a valid email address.");
-    } else {
-      setError(`Registration failed: ${error.message}`);
+    if (!fullName.trim()) {
+      setError("Please enter your full name");
+      return;
     }
-  } finally {
-    setLoading(false);
-  }
-};
+    
+    if (!email.trim()) {
+      setError("Please enter your email");
+      return;
+    }
+    
+    if (!password) {
+      setError("Please enter a password");
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    
+    if (!agreeToTerms) {
+      setError("You must agree to the Terms and Conditions");
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Generate timestamp-based UID
+      const timestampUID = `UID${Date.now()}`;
+      
+      await setDoc(doc(db, "users", timestampUID), {
+        userID: timestampUID, // Store custom UID
+        email,
+        name: fullName, 
+        phone: phoneNumber,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        uid: user.uid,
+      });
+      
+      setSuccess(`Account successfully created for ${email}`);
+      router.push("/");
+    } catch (error) {
+      console.error("Sign-up error:", error);
+      
+      if (error.code === 'auth/email-already-in-use') {
+        setError("This email is already registered. Please sign in instead.");
+      } else if (error.code === 'auth/invalid-email') {
+        setError("Please enter a valid email address.");
+      } else {
+        setError(`Registration failed: ${error.message}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  
   const signInWithGoogle = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+      
+      // Generate timestamp-based UID
+      const timestampUID = `UID${Date.now()}`;
+      
+      await setDoc(doc(db, "users", user.uid), {
+        userID: timestampUID, // Store custom UID
+        email: user.email,
+        name: user.displayName || "",
+        photoURL: user.photoURL || "",
+        provider: "google",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        uid: user.uid,
+      });
+      
       router.push("/");
-      console.log("Logged in as:", user.displayName);
     } catch (error) {
       console.error("Sign-in error:", error);
+      setError("Google sign-in failed. Please try again.");
     }
   };
 
@@ -123,14 +128,12 @@ const handleSignup = async () => {
                   It's totally free and super easy
                 </p>
                 
-                {/* Display error message */}
                 {error && (
                   <div className="mb-4 rounded-xs bg-red-50 p-3 text-red-700 border border-red-200">
                     {error}
                   </div>
                 )}
                 
-                {/* Display success message */}
                 {success && (
                   <div className="mb-4 rounded-xs bg-green-50 p-3 text-green-700 border border-green-200">
                     {success}
@@ -205,16 +208,16 @@ const handleSignup = async () => {
                   </div>
                 
                   <div className="mb-8">
-  <label
-    htmlFor="contact"
-    className="text-dark mb-3 block text-sm dark:text-white"
-  >
-    Contact Number
-  </label>
-  <MobileNumberInput 
-    onChange={(value) => setPhoneNumber(value)} 
-  />
-</div>
+                    <label
+                      htmlFor="contact"
+                      className="text-dark mb-3 block text-sm dark:text-white"
+                    >
+                      Contact Number
+                    </label>
+                    <MobileNumberInput 
+                      onChange={(value) => setPhoneNumber(value)} 
+                    />
+                  </div>
 
                   <div className="mb-8">
                     <label
@@ -234,61 +237,61 @@ const handleSignup = async () => {
                     />
                   </div>
                  
-<div className="mb-8">
-  <label
-    htmlFor="password"
-    className="text-dark mb-3 block text-sm dark:text-white"
-  >
-    Your Password
-  </label>
-  <div className="relative">
-    <input
-      type={isPasswordVisible ? "text" : "password"}
-      name="password"
-      id="password"
-      value={password}
-      onChange={(e) => setPassword(e.target.value)}
-      placeholder="Enter your Password"
-      className="border-stroke dark:text-body-color-dark dark:shadow-two text-body-color focus:border-primary dark:focus:border-primary w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base outline-hidden transition-all duration-300 dark:border-transparent dark:bg-[#2C303B] dark:focus:shadow-none"
-    />
-    <button
-      type="button"
-      onClick={() => setIsPasswordVisible(!isPasswordVisible)}
-      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none"
-      aria-label={isPasswordVisible ? "Hide password" : "Show password"}
-    >
-      {isPasswordVisible ? (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
-            clipRule="evenodd"
-          />
-          <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-        </svg>
-      ) : (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-          <path
-            fillRule="evenodd"
-            d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-            clipRule="evenodd"
-          />
-        </svg>
-      )}
-    </button>
-  </div>
-</div>
+                  <div className="mb-8">
+                    <label
+                      htmlFor="password"
+                      className="text-dark mb-3 block text-sm dark:text-white"
+                    >
+                      Your Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={isPasswordVisible ? "text" : "password"}
+                        name="password"
+                        id="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your Password"
+                        className="border-stroke dark:text-body-color-dark dark:shadow-two text-body-color focus:border-primary dark:focus:border-primary w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base outline-hidden transition-all duration-300 dark:border-transparent dark:bg-[#2C303B] dark:focus:shadow-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none"
+                        aria-label={isPasswordVisible ? "Hide password" : "Show password"}
+                      >
+                        {isPasswordVisible ? (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
+                              clipRule="evenodd"
+                            />
+                            <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                            <path
+                              fillRule="evenodd"
+                              d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                   <div className="mb-8 flex">
                     <label
                       htmlFor="checkboxLabel"
@@ -356,7 +359,63 @@ const handleSignup = async () => {
             </div>
           </div>
         </div>
-        {/* Background SVG code remains unchanged */}
+        <div className="absolute top-0 left-0 z-[-1]">
+          <svg
+            width="1440"
+            height="969"
+            viewBox="0 0 1440 969"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <mask
+              id="mask0_95:1005"
+              style={{ maskType: "alpha" }}
+              maskUnits="userSpaceOnUse"
+              x="0"
+              y="0"
+              width="1440"
+              height="969"
+            >
+              <rect width="1440" height="969" fill="#090E34" />
+            </mask>
+            <g mask="url(#mask0_95:1005)">
+              <path
+                opacity="0.1"
+                d="M1086.96 297.978L632.959 554.978L935.625 535.926L1086.96 297.978Z"
+                fill="url(#paint0_linear_95:1005)"
+              />
+              <path
+                opacity="0.1"
+                d="M1324.5 755.5L1450 687V886.5L1324.5 967.5L-10 288L1324.5 755.5Z"
+                fill="url(#paint1_linear_95:1005)"
+              />
+            </g>
+            <defs>
+              <linearGradient
+                id="paint0_linear_95:1005"
+                x1="1178.4"
+                y1="151.853"
+                x2="780.959"
+                y2="453.581"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stopColor="#4A6CF7" />
+                <stop offset="1" stopColor="#4A6CF7" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient
+                id="paint1_linear_95:1005"
+                x1="160.5"
+                y1="220"
+                x2="1099.45"
+                y2="1192.04"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stopColor="#4A6CF7" />
+                <stop offset="1" stopColor="#4A6CF7" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
       </section>
     </>
   );

@@ -77,8 +77,8 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({ items }) => {
     >
       {/* Dropdown Button (Original Style) */}
       <button
-        className={`flex items-center justify-between px-4 py-2 rounded-md border border-gray-300 shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors ${
-          isOpen ? "bg-gray-50 ring-2 ring-blue-100" : ""
+        className={`flex items-center justify-between px-4 py-2  text-sm font-medium text-gray-700 ${
+          isOpen ? "" : ""
         }`}
       >
         {/* Original User Icon */}
@@ -117,7 +117,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({ items }) => {
       {/* Enhanced Dropdown Menu */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-1 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 transition-all duration-150 ease-out"
+          className="absolute mt-2 w-52  origin-top-right rounded-md bg-white shadow-lg  ring-opacity-5 focus:outline-none z-10 transition-all duration-150 ease-out"
           onMouseEnter={stopCloseTimer} // Pause auto-close when hovering menu
           onMouseLeave={startCloseTimer} // Resume auto-close when leaving menu
         >

@@ -5,14 +5,24 @@ import Header from "@/components/Header";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Inter } from "next/font/google";
 import "../styles/index.css";
-
+import { usePathname } from 'next/navigation';
 const inter = Inter({ subsets: ["latin"] });
+
+
+const HIDE_HEADER_FOOTER_ROUTES = [
+  '/categories',
+  '/tag'
+  // Add more routes as needed
+];
+
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const shouldHide = HIDE_HEADER_FOOTER_ROUTES.includes(pathname);
   return (
     <html suppressHydrationWarning lang="en">
       {/*
@@ -21,11 +31,11 @@ export default function RootLayout({
       */}
       <head />
 
-      <body className={`bg-[#FCFCFC]  ${inter.className}`}>
-        <Providers>
-          <Header />
+      <body className={`bg-[#FCFCFC]  ${inter.className} pathname === '/categories' ? 'hidden' : ''`}>
+      <Providers>
+          {!shouldHide && <Header />} {/* 👈 Hide on /categories */}
           {children}
-          <Footer />
+          {!shouldHide && <Footer />}
           <ScrollToTop />
         </Providers>
       </body>

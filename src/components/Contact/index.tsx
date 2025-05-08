@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { db } from '@/app/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp , doc , setDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -12,7 +12,8 @@ const Contact = () => {
     message: '',
     phone: '',
     subject: 'General Inquiry',
-    status: 'pending'
+    status: 'pending',
+    attachmentURL: ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -26,7 +27,8 @@ const Contact = () => {
   };
 
   const generateQueryID = () => {
-    return `QID${Math.floor(100000 + Math.random() * 900000)}`;
+    const timestamp = Date.now().toString(); // Get current timestamp as string
+    return `QID${timestamp.slice(-6)}`; // Take last 6 characters
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,13 +36,16 @@ const Contact = () => {
     setLoading(true);
 
     try {
+      const queryId = generateQueryID();
+      
+      // Create a document reference with the custom UID
+      const queryRef = doc(db, 'queries', queryId);
       // Add document to Firestore
-      await addDoc(collection(db, 'queries'), {
+      await setDoc(queryRef, {
         ...formData,
-        queryID: generateQueryID(),
+        queryID: queryId, // Also store as a field if needed
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        attachmentURL: '',
         status: 'pending'
       });
 
@@ -51,7 +56,8 @@ const Contact = () => {
         message: '',
         phone: '',
         subject: 'General Inquiry',
-        status: 'pending'
+        status: 'pending',
+        attachmentURL: ''
       });
 
       toast.success('Your query has been submitted successfully!', {
@@ -170,6 +176,24 @@ const Contact = () => {
                         <option value="Feature Request">Feature Request</option>
                         <option value="Other">Other</option>
                       </select>
+                    </div>
+                  </div>
+                  <div className="w-full px-4">
+                    <div className="mb-8">
+                      <label
+                        htmlFor="attachmentURL"
+                        className="mb-3 block text-sm font-medium text-dark dark:text-white"
+                      >
+                        Attachment URL 
+                      </label>
+                      <input
+                        type="url"
+                        name="attachmentURL"
+                        value={formData.attachmentURL}
+                        onChange={handleChange}
+                        placeholder="Paste a link to any supporting documents"
+                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none"
+                      />
                     </div>
                   </div>
                   <div className="w-full px-4">

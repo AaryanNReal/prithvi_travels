@@ -109,7 +109,7 @@ export default function FeaturedPosts() {
           <BlogCard
             key={post.id}
             id={post.id}
-            slug=''
+            slug={post.slug}
             title={post.title}
             description={post.description}
             createdAt={post.createdAt?.toDate().toISOString() || new Date().toISOString()}

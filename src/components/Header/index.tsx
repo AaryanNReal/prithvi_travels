@@ -217,7 +217,7 @@ const Header = () => {
     <>
       <Link
         href="/signin"
-        className="text-dark px-7 py-3 text-base font-medium hover:opacity-70 dark:text-white block md:inline-block sm:inline-block"
+        className="text-dark lg:px-8  lg:py-3 md:py-2 sm:px-2 mr-2 text-base font-medium hover:opacity-70 dark:text-white block md:inline-block sm:inline-block"
       >
         Sign In
       </Link>
