@@ -4,9 +4,8 @@ import { db } from '@/app/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/app/lib/firebase_1';
-
+import { FirebaseFileUploader } from '@/components/FirebaseFileUploader';
+import MobileNumberInput from '@/components/PhoneInput';
 const Contact = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -18,10 +17,8 @@ const Contact = () => {
     attachmentURL: ''
   });
 
-  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -31,79 +28,27 @@ const Contact = () => {
     }));
   };
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      
-      // Validate file size (5MB limit)
-      const maxSize = 5 * 1024 * 1024;
-      if (selectedFile.size > maxSize) {
-        toast.error('File size exceeds 5MB limit');
-        return;
-      }
-
-      setFile(selectedFile);
-      setFormData(prev => ({
-        ...prev,
-        attachmentURL: ''
-      }));
-    }
+  const handleUploadSuccess = (downloadURL: string) => {
+    setFormData(prev => ({
+      ...prev,
+      attachmentURL: downloadURL
+    }));
+    setIsUploading(false);
   };
 
-  const uploadFile = async (fileToUpload) => {
-    if (!fileToUpload) return null;
-
+  const handleUploadStart = () => {
     setIsUploading(true);
-    setUploadProgress(0);
-    const toastId = toast.info('Uploading file... 0%', { autoClose: false });
+    // Clear previous attachment URL when starting new upload
+    setFormData(prev => ({
+      ...prev,
+      attachmentURL: ''
+    }));
+  };
 
-    try {
-      const fileName = `${Date.now()}_${fileToUpload.name.replace(/\s+/g, '_')}`;
-      const storageRef = ref(storage, `gs://foodweb-world.firebasestorage.app/queries/${fileName}`);
-      
-      const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
-      
-      // Create a promise to handle the upload
-      return new Promise((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-            setUploadProgress(progress);
-            toast.update(toastId, { render: `Uploading file... ${progress}%` });
-          },
-          (error) => {
-            console.error('Upload error:', error);
-            toast.dismiss(toastId);
-            toast.error(`Upload failed: ${error.message}`);
-            setIsUploading(false);
-            setUploadProgress(0);
-            reject(error);
-          },
-          async () => {
-            try {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              toast.dismiss(toastId);
-              toast.success('File uploaded successfully!');
-              resolve(downloadURL);
-            } catch (error) {
-              console.error('Error getting download URL:', error);
-              toast.dismiss(toastId);
-              toast.error('Failed to get download URL');
-              reject(error);
-            } finally {
-              setIsUploading(false);
-            }
-          }
-        );
-      });
-    } catch (error) {
-      console.error('Error initiating upload:', error);
-      toast.error('Failed to start upload. Please try again.');
-      setIsUploading(false);
-      setUploadProgress(0);
-      return Promise.reject(error);
-    }
+  const handleUploadError = (error: Error) => {
+    console.error('Upload error:', error);
+    toast.error(`File upload failed: ${error.message}`);
+    setIsUploading(false);
   };
 
   const generateQueryID = () => {
@@ -127,25 +72,11 @@ const Contact = () => {
     setLoading(true);
 
     try {
-      let downloadURL = '';
-      
-      // Upload file if one was selected
-      if (file) {
-        try {
-          downloadURL = await uploadFile(file);
-        } catch (error) {
-          console.error('File upload failed:', error);
-          setLoading(false);
-          return;
-        }
-      }
-
       const queryId = generateQueryID();
       const queryRef = doc(db, 'queries', queryId);
       
       await setDoc(queryRef, {
         ...formData,
-        attachmentURL: downloadURL || formData.attachmentURL,
         queryID: queryId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -161,8 +92,6 @@ const Contact = () => {
         status: 'pending',
         attachmentURL: ''
       });
-      setFile(null);
-      setUploadProgress(0);
 
       toast.success('Your query has been submitted successfully!');
     } catch (error) {
@@ -220,19 +149,23 @@ const Contact = () => {
                     </div>
                   </div>
                   <div className="w-full px-4 md:w-1/2">
-                    <div className="mb-8">
-                      <label htmlFor="phone" className="mb-3 block text-sm font-medium text-dark dark:text-white">
-                        Your Phone
-                      </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        placeholder="Enter your phone number"
-                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none"
-                      />
-                    </div>
+                   <div className="mb-8">
+  <label htmlFor="phone" className="mb-3 block text-sm font-medium text-dark dark:text-white">
+    Your Phone
+  </label>
+  <MobileNumberInput 
+    value={formData.phone}
+    onChange={(value) => {
+      // Update your form data state
+      handleChange({
+        target: {
+          name: 'phone',
+          value: value
+        }
+      });
+    }}
+  />
+</div>
                   </div>
                   <div className="w-full px-4 md:w-1/2">
                     <div className="mb-8">
@@ -255,54 +188,24 @@ const Contact = () => {
                   </div>
                   <div className="w-full px-4">
                     <div className="mb-8">
-                      <label htmlFor="attachment" className="mb-3 block text-sm font-medium text-dark dark:text-white">
+                      <label className="mb-3 block text-sm font-medium text-dark dark:text-white">
                         Attachment
                       </label>
-                      <div className="flex flex-col space-y-3">
-                        <input
-                          type="file"
-                          id="attachment"
-                          onChange={handleFileChange}
-                          disabled={isUploading}
-                          className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none disabled:opacity-70 disabled:cursor-not-allowed"
-                        />
+                      <FirebaseFileUploader
+                        storagePath="queries"
+                        maxSizeMB={5}
                         
-                        {file && !isUploading && (
-                          <div className="flex items-center justify-between mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xs">
-                            <div className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                              </svg>
-                              File selected: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFile(null);
-                                setFormData(prev => ({
-                                  ...prev,
-                                  attachmentURL: ''
-                                }));
-                              }}
-                              className="text-sm text-red-500 hover:text-red-700"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        )}
-                        
-                        {isUploading && (
-                          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                            <div 
-                              className="bg-blue-600 h-2.5 rounded-full" 
-                              style={{ width: `${uploadProgress}%` }}
-                            ></div>
-                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                              Uploading: {uploadProgress}%
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                        onUploadSuccess={handleUploadSuccess}
+                        onUploadError={handleUploadError}
+                        disabled={isUploading}
+                      />
+                      {formData.attachmentURL && (
+                        <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xs">
+                          <p className="text-sm text-green-600 dark:text-green-400">
+                            File uploaded successfully!
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="w-full px-4">

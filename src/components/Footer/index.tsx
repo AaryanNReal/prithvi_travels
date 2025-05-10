@@ -243,7 +243,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/"
+                      href="/Directories/blogs"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Blogs
@@ -259,7 +259,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/categories"
+                      href="/Directories/Categories"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Category
@@ -267,7 +267,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/tag"
+                      href="/Directories/Tags"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Tags
@@ -275,7 +275,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/"
+                      href="/Directories/Images"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Images

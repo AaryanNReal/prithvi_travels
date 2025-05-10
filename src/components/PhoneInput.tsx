@@ -5,8 +5,10 @@ import 'react-phone-input-2/lib/style.css';
 import { css } from '@emotion/css';
 
 interface MobileNumberInputProps {
+  value?: string;
   onChange?: (value: string) => void;
 }
+
 
 const MobileNumberInput: React.FC<MobileNumberInputProps> = ({ onChange }) => {
   const [phone, setPhone] = useState('');
