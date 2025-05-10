@@ -33,9 +33,9 @@ export default function RootLayout({
 
       <body className={`bg-[#FCFCFC]  ${inter.className} pathname === '/categories' ? 'hidden' : ''`}>
       <Providers>
-          {!shouldHide && <Header />} {/* 👈 Hide on /categories */}
+          <Header/>{/* 👈 Hide on /categories */}
           {children}
-          {!shouldHide && <Footer />}
+          <Footer/>{/* 👈 Hide on /categories */}
           <ScrollToTop />
         </Providers>
       </body>

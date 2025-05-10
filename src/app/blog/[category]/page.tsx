@@ -167,12 +167,12 @@ export default function CategoryPage() {
               imageUrl={post.image.imageURL}
               imageAlt={post.image.altText}
               category={post.category}
-              isFeatured={post.isFeatured}
-              author={post.createdBy ? {
-                name: post.createdBy.name,
-                image: post.createdBy.image,
-                role: post.createdBy.description
-              } : undefined}
+              
+                author={post.createdBy ? {
+                  name: post.createdBy.name,
+                  image: post.createdBy.image,
+                  role: post.createdBy.description
+                } : undefined}
               tags={post.tags ? Object.values(post.tags).map(tag => ({
                 id: tag.slug,
                 name: tag.name,

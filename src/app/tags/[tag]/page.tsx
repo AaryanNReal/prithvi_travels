@@ -139,7 +139,7 @@ export default function TagPage() {
               imageUrl={post.image.imageURL}
               imageAlt={post.image.altText}
               category={post.category}
-              isFeatured={post.isFeatured}
+              
               author={post.createdBy ? {
                 name: post.createdBy.name,
                 image: post.createdBy.image,

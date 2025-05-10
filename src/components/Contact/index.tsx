@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
 import { db } from '@/app/lib/firebase';
-import { collection, addDoc, serverTimestamp , doc , setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/app/lib/firebase_1';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -16,9 +18,12 @@ const Contact = () => {
     attachmentURL: ''
   });
 
+  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -26,27 +31,124 @@ const Contact = () => {
     }));
   };
 
-  const generateQueryID = () => {
-    const timestamp = Date.now().toString(); // Get current timestamp as string
-    return `QID${timestamp.slice(-6)}`; // Take last 6 characters
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      
+      // Validate file size (5MB limit)
+      const maxSize = 5 * 1024 * 1024;
+      if (selectedFile.size > maxSize) {
+        toast.error('File size exceeds 5MB limit');
+        return;
+      }
+
+      setFile(selectedFile);
+      setFormData(prev => ({
+        ...prev,
+        attachmentURL: ''
+      }));
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const uploadFile = async (fileToUpload) => {
+    if (!fileToUpload) return null;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    const toastId = toast.info('Uploading file... 0%', { autoClose: false });
+
+    try {
+      const fileName = `${Date.now()}_${fileToUpload.name.replace(/\s+/g, '_')}`;
+      const storageRef = ref(storage, `gs://foodweb-world.firebasestorage.app/queries/${fileName}`);
+      
+      const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
+      
+      // Create a promise to handle the upload
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            setUploadProgress(progress);
+            toast.update(toastId, { render: `Uploading file... ${progress}%` });
+          },
+          (error) => {
+            console.error('Upload error:', error);
+            toast.dismiss(toastId);
+            toast.error(`Upload failed: ${error.message}`);
+            setIsUploading(false);
+            setUploadProgress(0);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              toast.dismiss(toastId);
+              toast.success('File uploaded successfully!');
+              resolve(downloadURL);
+            } catch (error) {
+              console.error('Error getting download URL:', error);
+              toast.dismiss(toastId);
+              toast.error('Failed to get download URL');
+              reject(error);
+            } finally {
+              setIsUploading(false);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      console.error('Error initiating upload:', error);
+      toast.error('Failed to start upload. Please try again.');
+      setIsUploading(false);
+      setUploadProgress(0);
+      return Promise.reject(error);
+    }
+  };
+
+  const generateQueryID = () => {
+    const timestamp = Date.now().toString();
+    return `QID${timestamp.slice(-6)}`;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (isUploading) {
+      toast.error('Please wait for file upload to complete');
+      return;
+    }
+
+    if (!formData.name || !formData.email || !formData.message) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const queryId = generateQueryID();
+      let downloadURL = '';
       
-      // Create a document reference with the custom UID
+      // Upload file if one was selected
+      if (file) {
+        try {
+          downloadURL = await uploadFile(file);
+        } catch (error) {
+          console.error('File upload failed:', error);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const queryId = generateQueryID();
       const queryRef = doc(db, 'queries', queryId);
-      // Add document to Firestore
+      
       await setDoc(queryRef, {
         ...formData,
-        queryID: queryId, // Also store as a field if needed
+        attachmentURL: downloadURL || formData.attachmentURL,
+        queryID: queryId,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        status: 'pending'
+        updatedAt: serverTimestamp()
       });
 
       // Reset form
@@ -59,53 +161,35 @@ const Contact = () => {
         status: 'pending',
         attachmentURL: ''
       });
+      setFile(null);
+      setUploadProgress(0);
 
-      toast.success('Your query has been submitted successfully!', {
-        position: "top-center",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
+      toast.success('Your query has been submitted successfully!');
     } catch (error) {
-      console.error('Error submitting form: ', error);
-      toast.error('Failed to submit your query. Please try again.', {
-        position: "top-center",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
+      console.error('Error submitting form:', error);
+      toast.error('Failed to submit your query. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <section id="contact" className="overflow-hidden py-16 md:py-20 lg:py-28">
-      <div className="container">
-        <div className="-mx-4 flex flex-wrap">
-          <div className="w-full px-4 lg:w-7/12 xl:w-8/12">
-            <div
-              className="mb-12 rounded-xs bg-white px-8 py-11 shadow-three dark:bg-gray-dark sm:p-[55px] lg:mb-5 lg:px-8 xl:p-[55px]"
-              data-wow-delay=".15s"
-            >
-              <h2 className="mb-3 text-2xl font-bold text-black dark:text-white sm:text-3xl lg:text-2xl xl:text-3xl">
+    <section id="contact" className="flex items-center justify-center min-h-screen py-16 md:py-20 lg:py-28 bg-gray-50 dark:bg-gray-900">
+      <div className="container mx-auto px-4">
+        <div className="flex justify-center">
+          <div className="w-full max-w-4xl">
+            <div className="mb-12 rounded-xs bg-white px-8 py-11 shadow-three dark:bg-gray-dark sm:p-[55px] lg:px-8 xl:p-[55px]">
+              <h2 className="mb-3 text-2xl font-bold text-black dark:text-white sm:text-3xl lg:text-2xl xl:text-3xl text-center">
                 Need Help? Open a Ticket
               </h2>
-              <p className="mb-12 text-base font-medium text-body-color">
+              <p className="mb-12 text-base font-medium text-body-color text-center">
                 Our support team will get back to you ASAP via email.
               </p>
               <form onSubmit={handleSubmit}>
                 <div className="-mx-4 flex flex-wrap">
                   <div className="w-full px-4 md:w-1/2">
                     <div className="mb-8">
-                      <label
-                        htmlFor="name"
-                        className="mb-3 block text-sm font-medium text-dark dark:text-white"
-                      >
+                      <label htmlFor="name" className="mb-3 block text-sm font-medium text-dark dark:text-white">
                         Your Name
                       </label>
                       <input
@@ -121,10 +205,7 @@ const Contact = () => {
                   </div>
                   <div className="w-full px-4 md:w-1/2">
                     <div className="mb-8">
-                      <label
-                        htmlFor="email"
-                        className="mb-3 block text-sm font-medium text-dark dark:text-white"
-                      >
+                      <label htmlFor="email" className="mb-3 block text-sm font-medium text-dark dark:text-white">
                         Your Email
                       </label>
                       <input
@@ -140,10 +221,7 @@ const Contact = () => {
                   </div>
                   <div className="w-full px-4 md:w-1/2">
                     <div className="mb-8">
-                      <label
-                        htmlFor="phone"
-                        className="mb-3 block text-sm font-medium text-dark dark:text-white"
-                      >
+                      <label htmlFor="phone" className="mb-3 block text-sm font-medium text-dark dark:text-white">
                         Your Phone
                       </label>
                       <input
@@ -158,10 +236,7 @@ const Contact = () => {
                   </div>
                   <div className="w-full px-4 md:w-1/2">
                     <div className="mb-8">
-                      <label
-                        htmlFor="subject"
-                        className="mb-3 block text-sm font-medium text-dark dark:text-white"
-                      >
+                      <label htmlFor="subject" className="mb-3 block text-sm font-medium text-dark dark:text-white">
                         Subject
                       </label>
                       <select
@@ -180,28 +255,59 @@ const Contact = () => {
                   </div>
                   <div className="w-full px-4">
                     <div className="mb-8">
-                      <label
-                        htmlFor="attachmentURL"
-                        className="mb-3 block text-sm font-medium text-dark dark:text-white"
-                      >
-                        Attachment URL 
+                      <label htmlFor="attachment" className="mb-3 block text-sm font-medium text-dark dark:text-white">
+                        Attachment
                       </label>
-                      <input
-                        type="url"
-                        name="attachmentURL"
-                        value={formData.attachmentURL}
-                        onChange={handleChange}
-                        placeholder="Paste a link to any supporting documents"
-                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none"
-                      />
+                      <div className="flex flex-col space-y-3">
+                        <input
+                          type="file"
+                          id="attachment"
+                          onChange={handleFileChange}
+                          disabled={isUploading}
+                          className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none disabled:opacity-70 disabled:cursor-not-allowed"
+                        />
+                        
+                        {file && !isUploading && (
+                          <div className="flex items-center justify-between mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xs">
+                            <div className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              File selected: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFile(null);
+                                setFormData(prev => ({
+                                  ...prev,
+                                  attachmentURL: ''
+                                }));
+                              }}
+                              className="text-sm text-red-500 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
+                        
+                        {isUploading && (
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                            <div 
+                              className="bg-blue-600 h-2.5 rounded-full" 
+                              style={{ width: `${uploadProgress}%` }}
+                            ></div>
+                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                              Uploading: {uploadProgress}%
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="w-full px-4">
                     <div className="mb-8">
-                      <label
-                        htmlFor="message"
-                        className="mb-3 block text-sm font-medium text-dark dark:text-white"
-                      >
+                      <label htmlFor="message" className="mb-3 block text-sm font-medium text-dark dark:text-white">
                         Your Message
                       </label>
                       <textarea
@@ -215,11 +321,11 @@ const Contact = () => {
                       ></textarea>
                     </div>
                   </div>
-                  <div className="w-full px-4">
+                  <div className="w-full px-4 flex justify-center">
                     <button
                       type="submit"
-                      disabled={loading}
-                      className={`rounded-xs bg-primary px-9 py-4 text-base font-medium text-white shadow-submit duration-300 hover:bg-primary/90 dark:shadow-submit-dark ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      disabled={loading || isUploading}
+                      className={`rounded-xs bg-primary px-9 py-4 text-base font-medium text-white shadow-submit duration-300 hover:bg-primary/90 dark:shadow-submit-dark ${(loading || isUploading) ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
                       {loading ? (
                         <>
@@ -237,9 +343,6 @@ const Contact = () => {
                 </div>
               </form>
             </div>
-          </div>
-          <div className="w-full px-4 lg:w-5/12 xl:w-4/12">
-            {/* Add your contact information or other content here */}
           </div>
         </div>
       </div>

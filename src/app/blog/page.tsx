@@ -15,9 +15,10 @@ interface Blog {
     name: string;
     slug: string;
   };
-  author?: {
+  createdBy?: {
     name: string;
-    image: string;
+    image?: string;
+    description?: string;
   };
 }
 
@@ -33,27 +34,20 @@ export default function BlogList() {
         setError(null);
         
         const querySnapshot = await getDocs(collection(db, "blogs"));
-        const blogData = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            title: data.title || "Untitled Blog",
-            slug: data.slug,
-            description: data.description || "",
-            createdAt: data.createdAt || { seconds: Date.now() / 1000 },
-            imageUrl: data.image?.imageURL || "/default-blog-image.jpg",
-            category: {
-              name: data.category?.name || "Uncategorized",
-              slug: data.category?.slug || "uncategorized"
-            },
-            author: data.author ? {
-              name: data.author.name,
-              image: data.author.image || "/default-avatar.jpg"
-            } : undefined
-          };
-        });
+        const blogData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          title: doc.data().title || "Untitled Blog",
+          slug: doc.data().slug,
+          description: doc.data().description || "",
+          createdAt: doc.data().createdAt || { seconds: Date.now() / 1000 },
+          imageUrl: doc.data().image?.imageURL || "/default-blog-image.jpg",
+          category: {
+            name: doc.data().category?.name || "Uncategorized",
+            slug: doc.data().category?.slug || "uncategorized"
+          },
+          createdBy: doc.data().createdBy,
+        }));
 
-        // Small delay to allow the skeleton animation to be visible
         await new Promise(resolve => setTimeout(resolve, 300));
         setBlogs(blogData);
       } catch (err) {
@@ -77,14 +71,26 @@ export default function BlogList() {
   }
 
   return (
-    <div className="container px-4 py-8">
-      <div className="grid grid-cols-1 mt-32 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="container px-5 py-10 mx-auto max-w-6xl">
+      {/* Left-aligned Blog Page Header Section */}
+      <div className="mb-16 mt-20">
+        <div className="max-w-2xl">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Our Blogs</h1>
+          
+          
+          
+        </div>
+        
+        <div className="border-b border-gray-200 dark:border-gray-700 w-full mt-8"></div>
+      </div>
+
+      {/* Blog Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {loading ? (
-          // Skeleton loading cards
           Array.from({ length: 6 }).map((_, index) => (
             <div 
               key={index}
-              className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-md transition-opacity duration-300 opacity-0 animate-fadeIn"
+              className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm transition-opacity duration-300 opacity-0 animate-fadeIn w-full max-w-[320px] mx-auto"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <div className="bg-gray-200 dark:bg-gray-700 h-48 w-full animate-pulse"></div>
@@ -101,24 +107,29 @@ export default function BlogList() {
             </div>
           ))
         ) : blogs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center min-h-[300px] p-4 col-span-full">
+          <div className="col-span-full flex flex-col items-center justify-center mt-8">
             <p className="text-lg text-center text-gray-700 dark:text-gray-300">
               No blogs found. Check back later!
             </p>
           </div>
-        ) : (
+        ) : ( 
           blogs.map((blog) => (
-            <BlogCard
-              key={blog.id}
-              id={blog.id}
-              title={blog.title}
-              slug={blog.slug}
-              description={blog.description}
-              createdAt={new Date(blog.createdAt.seconds * 1000).toISOString()}
-              imageUrl={blog.imageUrl}
-              category={blog.category}
-              author={blog.author}
-            />
+            <div key={blog.id} className="w-95 mx-auto">
+              <BlogCard
+                id={blog.id}
+                title={blog.title}
+                slug={blog.slug}
+                description={blog.description}
+                createdAt={new Date(blog.createdAt.seconds * 1000).toISOString()}
+                imageUrl={blog.imageUrl}
+                category={blog.category}
+                author={blog.createdBy ? {
+                  name: blog.createdBy.name,
+                  image: blog.createdBy.image,
+                  role: blog.createdBy.description
+                } : undefined}
+              />
+            </div>
           ))
         )}
       </div>
