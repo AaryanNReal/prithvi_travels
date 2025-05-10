@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { db } from '@/app/lib/firebase';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import BlogCard from '../BlogCard';
 
 interface BlogPost {
@@ -37,6 +37,27 @@ export default function FeaturedPosts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [slidesPerView, setSlidesPerView] = useState(1);
+
+  // Set slides per view based on screen size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setSlidesPerView(1); // Mobile: 1 card per slide
+      } else if (window.innerWidth < 1024) {
+        setSlidesPerView(2); // Tablet: 2 cards per slide
+      } else {
+        setSlidesPerView(3); // Desktop: 3 cards per slide
+      }
+    };
+
+    // Initial call
+    handleResize();
+    
+    // Listen for window resize
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const fetchFeaturedPosts = async () => {
@@ -88,27 +109,32 @@ export default function FeaturedPosts() {
     fetchFeaturedPosts();
   }, []);
 
+  // Reset current slide when slides per view changes
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [slidesPerView]);
+
   // Function to move to next slide
   const nextSlide = useCallback(() => {
-    if (featuredPosts.length <= 3) return;
+    if (featuredPosts.length <= slidesPerView) return;
     
-    const totalSlides = Math.ceil(featuredPosts.length / 3);
+    const totalSlides = Math.ceil(featuredPosts.length / slidesPerView);
     setCurrentSlide((prevSlide) => (prevSlide + 1) % totalSlides);
-  }, [featuredPosts.length]);
+  }, [featuredPosts.length, slidesPerView]);
 
   // Function to move to previous slide
   const prevSlide = useCallback(() => {
-    if (featuredPosts.length <= 3) return;
+    if (featuredPosts.length <= slidesPerView) return;
     
-    const totalSlides = Math.ceil(featuredPosts.length / 3);
+    const totalSlides = Math.ceil(featuredPosts.length / slidesPerView);
     setCurrentSlide((prevSlide) => (prevSlide - 1 + totalSlides) % totalSlides);
-  }, [featuredPosts.length]);
+  }, [featuredPosts.length, slidesPerView]);
 
-  // Auto slide every 3 seconds
+  // Auto slide every 5 seconds
   useEffect(() => {
     const autoSlideTimer = setInterval(() => {
       nextSlide();
-    }, 3000);
+    }, 5000);
 
     return () => clearInterval(autoSlideTimer);
   }, [nextSlide]);
@@ -125,37 +151,42 @@ export default function FeaturedPosts() {
     </div>
   );
 
-  // Prepare slides
+  // Prepare slides based on slidesPerView
   const slides = [];
-  const postsPerSlide = 3;
-  const totalSlides = Math.ceil(featuredPosts.length / postsPerSlide);
+  const totalSlides = Math.ceil(featuredPosts.length / slidesPerView);
 
   for (let i = 0; i < totalSlides; i++) {
-    const startIndex = i * postsPerSlide;
-    const slidePosts = featuredPosts.slice(startIndex, startIndex + postsPerSlide);
+    const startIndex = i * slidesPerView;
+    const slidePosts = featuredPosts.slice(startIndex, startIndex + slidesPerView);
     slides.push(slidePosts);
   }
 
   return (
-    <section className="mb-12 m-10 border-b">
+    <section className="mb-12 mx-auto max-w-screen-xl mt-2 px-4 md:px-6 lg:px-8 border-b">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Featured Posts</h2>
       
       <div className="relative">
         {/* Slider Container */}
-        <div className="overflow-hidden">
-          {/* Slider */}
+        <div className="overflow-hidden relative max-w-5xl mx-auto">
+          {/* Slider container with smooth transition */}
           <div 
-            className="flex transition-transform duration-500 ease-in-out"
+            className="flex transition-transform duration-500 ease-out"
             style={{ transform: `translateX(-${currentSlide * 100}%)` }}
           >
             {slides.map((slideContent, slideIndex) => (
-              <div key={slideIndex} className="min-w-full flex-shrink-0">
-                <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 px-4 sm:px-0">
+              <div 
+                key={slideIndex} 
+                className="min-w-full flex-shrink-0 px-1 md:px-2"
+              >
+                {/* Responsive grid - always one column on mobile, variable on larger screens */}
+                <div className={`grid grid-cols-1 ${
+                  slidesPerView === 2 ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'
+                } gap-4 md:gap-5 lg:gap-6`}>
                   {slideContent.map((post) => (
                     <div 
-  key={post.id} 
-  className="w-full sm:w-11/12 md:w-4/5 lg:w-94 xl:w-94 mx-auto px-4 sm:px-0"
->
+                      key={post.id}
+                      className="w-full max-w-xs mx-auto md:max-w-sm lg:max-w-sm overflow-hidden rounded-lg shadow-sm"
+                    >
                       <BlogCard
                         id={post.id}
                         slug={post.slug}
@@ -170,7 +201,6 @@ export default function FeaturedPosts() {
                           image: post.createdBy.image,
                           role: post.createdBy.description
                         } : undefined}
-                        
                       />
                     </div>
                   ))}
@@ -178,47 +208,47 @@ export default function FeaturedPosts() {
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Navigation dots */}
-        {totalSlides > 1 && (
-          <div className="flex justify-center mt-6 space-x-2">
-            {Array.from({ length: totalSlides }).map((_, index) => (
+          {/* Navigation dots */}
+          {totalSlides > 1 && (
+            <div className="flex justify-center mt-6 space-x-2">
+              {Array.from({ length: totalSlides }).map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentSlide(index)}
+                  className={`h-2 w-2 rounded-full ${
+                    currentSlide === index ? 'bg-blue-500' : 'bg-gray-300'
+                  }`}
+                  aria-label={`Go to slide ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Navigation arrows - only show if there are multiple slides */}
+          {totalSlides > 1 && (
+            <>
               <button
-                key={index}
-                onClick={() => setCurrentSlide(index)}
-                className={`h-2 w-2 rounded-full ${
-                  currentSlide === index ? 'bg-blue-500' : 'bg-gray-300'
-                }`}
-                aria-label={`Go to slide ${index + 1}`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Navigation arrows - only show if there are multiple slides */}
-        {totalSlides > 1 && (
-          <>
-            <button
-              onClick={prevSlide}
-              className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 p-2 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 z-10"
-              aria-label="Previous slide"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={nextSlide}
-              className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 bg-white dark:bg-gray-800 p-2 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 z-10"
-              aria-label="Next slide"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </>
-        )}
+                onClick={prevSlide}
+                className="absolute top-1/2 left-0 -translate-y-1/2 bg-white dark:bg-gray-800 p-2 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 z-10 md:-translate-x-3"
+                aria-label="Previous slide"
+              >
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={nextSlide}
+                className="absolute top-1/2 right-0 -translate-y-1/2 bg-white dark:bg-gray-800 p-2 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 z-10 md:translate-x-3"
+                aria-label="Next slide"
+              >
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </section>
   );
