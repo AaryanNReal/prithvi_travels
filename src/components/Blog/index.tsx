@@ -152,7 +152,10 @@ export default function FeaturedPosts() {
               <div key={slideIndex} className="min-w-full flex-shrink-0">
                 <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 px-4 sm:px-0">
                   {slideContent.map((post) => (
-                    <div key={post.id} className="w-95">
+                    <div 
+  key={post.id} 
+  className="w-full sm:w-11/12 md:w-4/5 lg:w-94 xl:w-94 mx-auto px-4 sm:px-0"
+>
                       <BlogCard
                         id={post.id}
                         slug={post.slug}
