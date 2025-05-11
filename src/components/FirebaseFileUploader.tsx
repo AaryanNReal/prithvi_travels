@@ -154,16 +154,7 @@ export const FirebaseFileUploader = ({
           >
             View or Download File
           </a>
-          <div className="mt-3">
-            <p className="text-xs text-gray-500 mb-1">Shareable link:</p>
-            <input
-              type="text"
-              value={downloadUrl}
-              readOnly
-              className="w-full p-2 text-xs border rounded bg-gray-50"
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-            />
-          </div>
+          
         </div>
       )}
     </div>

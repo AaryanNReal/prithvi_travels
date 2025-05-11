@@ -294,14 +294,14 @@ const HelpDeskPage = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
-            <div className="border-b px-6 py-4">
+            <div className="border-b px-6 py-1">
               <h2 className="text-xl font-semibold text-gray-800">Create New Ticket</h2>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6">
-              <div className="mb-4">
+            <form onSubmit={handleSubmit} className="p-4">
+              <div className="mb-2">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="category">
                   Category
                 </label>
@@ -309,7 +309,7 @@ const HelpDeskPage = () => {
                   id="category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="Account Related">Account Related</option>
                   <option value="Technical Support">Technical Support</option>
@@ -335,7 +335,7 @@ const HelpDeskPage = () => {
               </div>
 
               <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
+                <label className="block text-gray-700 text-sm font-bold mb-1">
                   Attachment
                 </label>
                 <FirebaseFileUploader
@@ -346,18 +346,14 @@ const HelpDeskPage = () => {
                   onUploadError={handleUploadError}
                   buttonText="Upload Attachment"
                 />
-                {attachmentUrl && (
-                  <div className="mt-2 text-sm text-green-600">
-                    File uploaded successfully!
-                  </div>
-                )}
+                
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
+              <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="px-4 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Cancel
                 </button>
