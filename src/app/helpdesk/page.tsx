@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/app/lib/firebase';
-import { collection, getDocs, doc, setDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { FirebaseFileUploader } from '@/components/FirebaseFileUploader';
@@ -51,11 +51,21 @@ const HelpDeskPage = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showError, setShowError] = useState(false);
   const router = useRouter();
 
   // Form state
   const [category, setCategory] = useState('Account Related');
   const [description, setDescription] = useState('');
+  const [errors, setErrors] = useState({
+    category: '',
+    description: '',
+    form: ''
+  });
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Check auth state and fetch tickets
   useEffect(() => {
@@ -72,6 +82,36 @@ const HelpDeskPage = () => {
 
     return () => unsubscribe();
   }, [router]);
+
+  // Validate form
+  useEffect(() => {
+    if (isSubmitted) {
+      validateForm();
+    }
+  }, [category, description, isSubmitted]);
+
+  const validateForm = () => {
+    const newErrors = {
+      category: '',
+      description: '',
+      form: ''
+    };
+
+    if (!category) {
+      newErrors.category = 'Category is required';
+    }
+
+    if (!description) {
+      newErrors.description = 'Description is required';
+    } else if (description.length < 10) {
+      newErrors.description = 'Description must be at least 10 characters';
+    } else if (description.length > 1000) {
+      newErrors.description = 'Description must be less than 1000 characters';
+    }
+
+    setErrors(newErrors);
+    return !newErrors.category && !newErrors.description;
+  };
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -109,7 +149,9 @@ const HelpDeskPage = () => {
       setTickets(ticketList);
     } catch (error) {
       console.error('Error fetching tickets: ', error);
-      alert('Failed to fetch tickets');
+      setErrorMessage('Failed to fetch tickets');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
     } finally {
       setLoading(false);
     }
@@ -126,6 +168,12 @@ const HelpDeskPage = () => {
 
   const showModal = () => {
     setIsModalOpen(true);
+    setIsSubmitted(false);
+    setErrors({
+      category: '',
+      description: '',
+      form: ''
+    });
   };
 
   const closeModal = () => {
@@ -133,6 +181,12 @@ const HelpDeskPage = () => {
     setCategory('Account Related');
     setDescription('');
     setAttachmentUrl(null);
+    setIsSubmitted(false);
+    setErrors({
+      category: '',
+      description: '',
+      form: ''
+    });
   };
 
   const handleUploadSuccess = (url: string) => {
@@ -141,18 +195,24 @@ const HelpDeskPage = () => {
 
   const handleUploadError = (error: Error) => {
     console.error('Upload failed:', error);
+    setErrorMessage('File upload failed. Please try again.');
+    setShowError(true);
+    setTimeout(() => setShowError(false), 5000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setIsSubmitted(true);
+
     if (!user) {
-      alert('You must be logged in to submit a ticket');
+      setErrorMessage('You must be logged in to submit a ticket');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
       return;
     }
 
-    if (!description) {
-      alert('Please enter a description');
+    const isValid = validateForm();
+    if (!isValid) {
       return;
     }
 
@@ -185,12 +245,68 @@ const HelpDeskPage = () => {
       };
 
       await setDoc(ticketRef, ticketData);
-      alert('Ticket created successfully!');
+      setSuccessMessage('Ticket created successfully!');
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 5000);
       closeModal();
       await fetchTickets();
     } catch (error) {
       console.error('Error creating ticket: ', error);
-      alert('Failed to create ticket');
+      setErrorMessage('Failed to create ticket. Please try again.');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReopenTicket = async (ticketId: string) => {
+    if (!window.confirm('Are you sure you want to reopen this ticket?')) return;
+    
+    setLoading(true);
+    try {
+      const ticketRef = doc(db, 'helpdesk', ticketId);
+      
+      await setDoc(ticketRef, {
+        status: "Reopened",
+        updatedAt: serverTimestamp(),
+        responses: {
+          reopened: {
+            response: "Ticket reopened by user",
+            createdAt: serverTimestamp()
+          }
+        }
+      }, { merge: true });
+
+      setSuccessMessage('Ticket reopened successfully!');
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 5000);
+      await fetchTickets();
+    } catch (error) {
+      console.error('Error reopening ticket: ', error);
+      setErrorMessage('Failed to reopen ticket');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (!window.confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) return;
+    
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'helpdesk', ticketId));
+      setSuccessMessage('Ticket deleted successfully!');
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 5000);
+      await fetchTickets();
+    } catch (error) {
+      console.error('Error deleting ticket: ', error);
+      setErrorMessage('Failed to delete ticket');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
     } finally {
       setLoading(false);
     }
@@ -224,6 +340,30 @@ const HelpDeskPage = () => {
 
   return (
     <div className="container mx-auto mt-34 px-4 py-8 max-w-7xl">
+      {/* Success Message */}
+      {showSuccess && (
+        <div className="fixed top-4 right-4 z-50">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-md shadow-lg flex items-center">
+            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>{successMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {showError && (
+        <div className="fixed top-4 right-4 z-50">
+          <div className="bg-red-500 text-white px-6 py-4 rounded-md shadow-lg flex items-center">
+            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            <span>{errorMessage}</span>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-800">Help Desk Tickets</h1>
@@ -248,12 +388,13 @@ const HelpDeskPage = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Initial Message</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center">
+                  <td colSpan={7} className="px-6 py-4 text-center">
                     <div className="flex justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                     </div>
@@ -261,7 +402,7 @@ const HelpDeskPage = () => {
                 </tr>
               ) : tickets.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     No tickets found
                   </td>
                 </tr>
@@ -284,6 +425,24 @@ const HelpDeskPage = () => {
                     <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
                       {ticket.responses.opened.response}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        {ticket.status === 'Closed' && (
+                          <button
+                            onClick={() => handleReopenTicket(ticket.id)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Reopen
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteTicket(ticket.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -292,7 +451,7 @@ const HelpDeskPage = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Create Ticket Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
@@ -300,43 +459,54 @@ const HelpDeskPage = () => {
               <h2 className="text-xl font-semibold text-gray-800">Create New Ticket</h2>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-4">
+            <form onSubmit={handleSubmit} className="p-4" noValidate>
               <div className="mb-2">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="category">
-                  Category
+                  Category <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-1 border ${errors.category ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  required
                 >
+                  <option value="">Select a category</option>
                   <option value="Account Related">Account Related</option>
                   <option value="Technical Support">Technical Support</option>
                   <option value="Billing Support">Billing Support</option>
                   <option value="Feature Request">Feature Request</option>
                   <option value="Other">Other</option>
                 </select>
+                {errors.category && (
+                  <p className="mt-1 text-sm text-red-600">{errors.category}</p>
+                )}
               </div>
 
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="description">
-                  Description
+                  Description <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   id="description"
                   rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Describe your issue in detail"
+                  className={`w-full px-3 py-2 border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  placeholder="Describe your issue in detail (minimum 10 characters)"
                   required
                 />
+                {errors.description && (
+                  <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+                )}
+                <div className="text-right text-xs text-gray-500 mt-1">
+                  {description.length}/1000 characters
+                </div>
               </div>
 
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-1">
-                  Attachment
+                  Attachment (Optional)
                 </label>
                 <FirebaseFileUploader
                   storagePath="helpdesk-attachments"
@@ -346,8 +516,16 @@ const HelpDeskPage = () => {
                   onUploadError={handleUploadError}
                   buttonText="Upload Attachment"
                 />
-                
+                <p className="mt-1 text-xs text-gray-500">
+                  Supported formats: JPG, PNG, PDF, DOC, DOCX (Max 5MB)
+                </p>
               </div>
+
+              {errors.form && (
+                <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-md text-sm">
+                  {errors.form}
+                </div>
+              )}
 
               <div className="flex justify-end space-x-3">
                 <button
@@ -359,8 +537,8 @@ const HelpDeskPage = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!description || loading}
-                  className={`px-4 py-2 rounded-md text-white ${!description || loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                  disabled={loading}
+                  className={`px-4 py-2 rounded-md text-white ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                 >
                   {loading ? 'Submitting...' : 'Submit Ticket'}
                 </button>

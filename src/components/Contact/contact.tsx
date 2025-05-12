@@ -1,11 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '@/app/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import { FirebaseFileUploader } from '@/components/FirebaseFileUploader';
 import MobileNumberInput from '@/components/PhoneInput';
+
 const Contact = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -19,8 +18,20 @@ const Contact = () => {
 
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [popupMessage, setPopupMessage] = useState('');
+  const [popupType, setPopupType] = useState<'success' | 'error' | ''>('');
 
-  const handleChange = (e) => {
+  useEffect(() => {
+    if (popupMessage) {
+      const timer = setTimeout(() => {
+        setPopupMessage('');
+        setPopupType('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [popupMessage]);
+
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -38,7 +49,6 @@ const Contact = () => {
 
   const handleUploadStart = () => {
     setIsUploading(true);
-    // Clear previous attachment URL when starting new upload
     setFormData(prev => ({
       ...prev,
       attachmentURL: ''
@@ -47,7 +57,8 @@ const Contact = () => {
 
   const handleUploadError = (error: Error) => {
     console.error('Upload error:', error);
-    toast.error(`File upload failed: ${error.message}`);
+    setPopupType('error');
+    setPopupMessage(`File upload failed: ${error.message}`);
     setIsUploading(false);
   };
 
@@ -56,16 +67,18 @@ const Contact = () => {
     return `QID${timestamp.slice(-6)}`;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
-    
+
     if (isUploading) {
-      toast.error('Please wait for file upload to complete');
+      setPopupType('error');
+      setPopupMessage('Please wait for file upload to complete');
       return;
     }
 
     if (!formData.name || !formData.email || !formData.message) {
-      toast.error('Please fill in all required fields');
+      setPopupType('error');
+      setPopupMessage('Please fill in all required fields');
       return;
     }
 
@@ -74,7 +87,7 @@ const Contact = () => {
     try {
       const queryId = generateQueryID();
       const queryRef = doc(db, 'queries', queryId);
-      
+
       await setDoc(queryRef, {
         ...formData,
         queryID: queryId,
@@ -82,7 +95,6 @@ const Contact = () => {
         updatedAt: serverTimestamp()
       });
 
-      // Reset form
       setFormData({
         name: '',
         email: '',
@@ -93,10 +105,12 @@ const Contact = () => {
         attachmentURL: ''
       });
 
-      toast.success('Your query has been submitted successfully!');
+      setPopupType('success');
+      setPopupMessage('Your query has been submitted successfully!');
     } catch (error) {
       console.error('Error submitting form:', error);
-      toast.error('Failed to submit your query. Please try again.');
+      setPopupType('error');
+      setPopupMessage('Failed to submit your query. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -114,6 +128,18 @@ const Contact = () => {
               <p className="mb-12 text-base font-medium text-body-color text-center">
                 Our support team will get back to you ASAP via email.
               </p>
+
+              {popupMessage && (
+                <div
+                  className={`mb-6 text-center rounded-md px-4 py-3 text-sm font-medium ${
+                    popupType === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
+                    'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                  }`}
+                >
+                  {popupMessage}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit}>
                 <div className="-mx-4 flex flex-wrap">
                   <div className="w-full px-4 md:w-1/2">
@@ -128,7 +154,7 @@ const Contact = () => {
                         onChange={handleChange}
                         placeholder="Enter your name"
                         required
-                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none"
+                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3"
                       />
                     </div>
                   </div>
@@ -144,29 +170,25 @@ const Contact = () => {
                         onChange={handleChange}
                         placeholder="Enter your email"
                         required
-                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none"
+                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3"
                       />
                     </div>
                   </div>
+
                   <div className="w-full px-4 md:w-1/2">
-                   <div className="mb-8">
-  <label htmlFor="phone" className="mb-3 block text-sm font-medium text-dark dark:text-white">
-    Your Phone
-  </label>
-  <MobileNumberInput 
-    value={formData.phone}
-    onChange={(value) => {
-      // Update your form data state
-      handleChange({
-        target: {
-          name: 'phone',
-          value: value
-        }
-      });
-    }}
-  />
-</div>
+                    <div className="mb-8">
+                      <label htmlFor="phone" className="mb-3 block text-sm font-medium text-dark dark:text-white">
+                        Your Phone
+                      </label>
+                      <MobileNumberInput
+                        value={formData.phone}
+                        onChange={(value) => {
+                          handleChange({ target: { name: 'phone', value } });
+                        }}
+                      />
+                    </div>
                   </div>
+
                   <div className="w-full px-4 md:w-1/2">
                     <div className="mb-8">
                       <label htmlFor="subject" className="mb-3 block text-sm font-medium text-dark dark:text-white">
@@ -176,7 +198,7 @@ const Contact = () => {
                         name="subject"
                         value={formData.subject}
                         onChange={handleChange}
-                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none"
+                        className="border-stroke w-full rounded-xs border bg-[#f8f8f8] px-6 py-3"
                       >
                         <option value="General Inquiry">General Inquiry</option>
                         <option value="Technical Support">Technical Support</option>
@@ -186,6 +208,7 @@ const Contact = () => {
                       </select>
                     </div>
                   </div>
+
                   <div className="w-full px-4">
                     <div className="mb-8">
                       <label className="mb-3 block text-sm font-medium text-dark dark:text-white">
@@ -194,20 +217,19 @@ const Contact = () => {
                       <FirebaseFileUploader
                         storagePath="queries"
                         maxSizeMB={5}
-                        
+                        onUploadStart={handleUploadStart}
                         onUploadSuccess={handleUploadSuccess}
                         onUploadError={handleUploadError}
                         disabled={isUploading}
                       />
                       {formData.attachmentURL && (
                         <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xs">
-                          <p className="text-sm text-green-600 dark:text-green-400">
-                            File uploaded successfully!
-                          </p>
+                          
                         </div>
                       )}
                     </div>
                   </div>
+
                   <div className="w-full px-4">
                     <div className="mb-8">
                       <label htmlFor="message" className="mb-3 block text-sm font-medium text-dark dark:text-white">
@@ -220,15 +242,18 @@ const Contact = () => {
                         rows={5}
                         placeholder="Enter your Message"
                         required
-                        className="border-stroke w-full resize-none rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base text-body-color outline-hidden focus:border-primary dark:border-transparent dark:bg-[#2C303B] dark:text-body-color-dark dark:shadow-two dark:focus:border-primary dark:focus:shadow-none"
+                        className="border-stroke w-full resize-none rounded-xs border bg-[#f8f8f8] px-6 py-3"
                       ></textarea>
                     </div>
                   </div>
+
                   <div className="w-full px-4 flex justify-center">
                     <button
                       type="submit"
                       disabled={loading || isUploading}
-                      className={`rounded-xs bg-primary px-9 py-4 text-base font-medium text-white shadow-submit duration-300 hover:bg-primary/90 dark:shadow-submit-dark ${(loading || isUploading) ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      className={`rounded-xs bg-primary px-9 py-4 text-base font-medium text-white ${
+                        loading || isUploading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary/90'
+                      }`}
                     >
                       {loading ? (
                         <>
