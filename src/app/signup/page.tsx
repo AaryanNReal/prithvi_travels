@@ -89,30 +89,30 @@ const SignupPage = () => {
   };
 
   const signInWithGoogle = async () => {
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // Generate timestamp-based UID
-      const timestampUID = `UID${Date.now()}`;
-      
-      await setDoc(doc(db, "users", user.uid), {
-        userID: timestampUID, // Store custom UID
-        email: user.email,
-        name: user.displayName || "",
-        photoURL: user.photoURL || "",
-        provider: "google",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        uid: user.uid,
-      });
-      
-      router.push("/");
-    } catch (error) {
-      console.error("Sign-in error:", error);
-      setError("Google sign-in failed. Please try again.");
-    }
-  };
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    
+    // Generate timestamp-based custom UID
+    const timestampUID = `UID${Date.now()}`;
+    
+    await setDoc(doc(db, "users", timestampUID), {
+      userID: timestampUID, // Custom document ID stored as userID
+      email: user.email,
+      name: user.displayName || "",
+      photoURL: user.photoURL || "",
+      provider: "google",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      uid: user.uid, // Original firebase uid can be stored here if needed
+    });
+    
+    router.push("/");
+  } catch (error) {
+    console.error("Sign-in error:", error);
+    setError("Google sign-in failed. Please try again.");
+  }
+};
 
   return (
     <>

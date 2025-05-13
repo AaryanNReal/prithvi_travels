@@ -13,7 +13,8 @@ const nextConfig = {
         port: "",
       },
     ],
-  },
+      domains: ['images.pexels.com', 'www.pexels.com','google.com','facebook.com','cdn.sanity.io','firebasestorage.googleapis.com'],
+  },  
   async rewrites() {
     return [
       {

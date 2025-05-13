@@ -15,7 +15,7 @@ const menuData: Menu[] = [
       {
         id: 21,
         title: "Tour List",
-        path: "/about",
+        path: "/tours",
         newTab: false,
       },
       {
@@ -53,8 +53,8 @@ const menuData: Menu[] = [
     submenu: [
       {
         id: 41,
-        title: "To be Added",
-        path: "/about",
+        title: "Cruise List",
+        path: "/cruises",
         newTab: false,
       },
     ],
