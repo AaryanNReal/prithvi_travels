@@ -1,10 +1,11 @@
-'use client'
+'use client';
+
 import Link from "next/link";
 import React, { useState } from "react";
 import MobileNumberInput from "@/components/PhoneInput";
 import { signInWithPopup, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, provider } from "../lib/firebase"; 
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 const SignupPage = () => {
@@ -14,71 +15,68 @@ const SignupPage = () => {
   const [password, setPassword] = useState("");
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const router = useRouter();
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
-  const handlePhoneChange = (value) => {
+  const handlePhoneChange = (value: string) => {
     setPhoneNumber(value);
   };
 
+  // Sign up using email/password. If a user document with the same uid already exists, do not create a new one.
   const handleSignup = async () => {
     setError("");
     setSuccess("");
-    
+
     if (!fullName.trim()) {
       setError("Please enter your full name");
       return;
     }
-    
     if (!email.trim()) {
       setError("Please enter your email");
       return;
     }
-    
     if (!password) {
       setError("Please enter a password");
       return;
     }
-    
     if (password.length < 6) {
       setError("Password must be at least 6 characters");
       return;
     }
-    
     if (!agreeToTerms) {
       setError("You must agree to the Terms and Conditions");
       return;
     }
-    
+
     setLoading(true);
-    
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
-      // Generate timestamp-based UID
-      const timestampUID = `UID${Date.now()}`;
-      
-      await setDoc(doc(db, "users", timestampUID), {
-        userID: timestampUID, // Store custom UID
-        email,
-        name: fullName, 
-        phone: phoneNumber,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        uid: user.uid,
-      });
-      
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        // Generate timestamp-based custom UID
+        const timestampUID = `UID${Date.now()}`;
+        await setDoc(userDocRef, {
+          userID: timestampUID, // Store custom UID in field userID
+          email,
+          name: fullName,
+          phone: phoneNumber,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          uid: user.uid, // original firebase uid for reference
+        });
+      }
       setSuccess(`Account successfully created for ${email}`);
       router.push("/");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Sign-up error:", error);
-      
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.code === "auth/email-already-in-use") {
         setError("This email is already registered. Please sign in instead.");
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.code === "auth/invalid-email") {
         setError("Please enter a valid email address.");
       } else {
         setError(`Registration failed: ${error.message}`);
@@ -88,31 +86,34 @@ const SignupPage = () => {
     }
   };
 
+  // Sign in with Google. Check if a user document for that Firebase UID exists.
   const signInWithGoogle = async () => {
-  try {
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-    
-    // Generate timestamp-based custom UID
-    const timestampUID = `UID${Date.now()}`;
-    
-    await setDoc(doc(db, "users", timestampUID), {
-      userID: timestampUID, // Custom document ID stored as userID
-      email: user.email,
-      name: user.displayName || "",
-      photoURL: user.photoURL || "",
-      provider: "google",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      uid: user.uid, // Original firebase uid can be stored here if needed
-    });
-    
-    router.push("/");
-  } catch (error) {
-    console.error("Sign-in error:", error);
-    setError("Google sign-in failed. Please try again.");
-  }
-};
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        // Generate timestamp-based custom UID
+        const timestampUID = `UID${Date.now()}`;
+        await setDoc(userDocRef, {
+          userID: timestampUID, // Store custom UID in field userID
+          email: user.email,
+          name: user.displayName || "",
+          photoURL: user.photoURL || "",
+          provider: "google",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          uid: user.uid,
+        });
+      }
+      router.push("/");
+    } catch (error: any) {
+      console.error("Sign-in error:", error);
+      setError("Google sign-in failed. Please try again.");
+    }
+  };
 
   return (
     <>
@@ -124,7 +125,7 @@ const SignupPage = () => {
                 <h3 className="mb-3 text-center text-2xl font-bold text-black sm:text-3xl dark:text-white">
                   Create your account
                 </h3>
-                <p className="text-body-color mb-11 text-center text-base font-medium">
+                <p className="mb-11 text-center text-base font-medium text-body-color">
                   It's totally free and super easy
                 </p>
                 
@@ -133,17 +134,16 @@ const SignupPage = () => {
                     {error}
                   </div>
                 )}
-                
                 {success && (
                   <div className="mb-4 rounded-xs bg-green-50 p-3 text-green-700 border border-green-200">
                     {success}
                   </div>
                 )}
-
+                
                 <button 
                   onClick={signInWithGoogle} 
                   disabled={loading}
-                  className="border-stroke dark:text-body-color-dark dark:shadow-two text-body-color hover:border-primary hover:bg-primary/5 hover:text-primary dark:hover:border-primary dark:hover:bg-primary/5 dark:hover:text-primary mb-6 flex w-full items-center justify-center rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base outline-hidden transition-all duration-300 dark:border-transparent dark:bg-[#2C303B] dark:hover:shadow-none disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="mb-6 flex w-full items-center justify-center rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base transition-all duration-300 outline-hidden hover:border-primary hover:bg-primary/5 hover:text-primary dark:border-transparent dark:bg-[#2C303B] dark:shadow-two dark:text-body-color-dark dark:hover:border-primary dark:hover:bg-primary/5 dark:hover:text-primary disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   <span className="mr-3">
                     <svg
@@ -180,20 +180,18 @@ const SignupPage = () => {
                   </span>
                   {loading ? "Signing in..." : "Sign in with Google"}
                 </button>
-
+                
                 <div className="mb-8 flex items-center justify-center">
-                  <span className="bg-body-color/50 hidden h-[1px] w-full max-w-[60px] sm:block"></span>
-                  <p className="text-body-color w-full px-5 text-center text-base font-medium">
+                  <span className="hidden h-[1px] w-full max-w-[60px] sm:block bg-body-color/50"></span>
+                  <p className="w-full px-5 text-center text-base font-medium text-body-color">
                     Or, register with your email
                   </p>
-                  <span className="bg-body-color/50 hidden h-[1px] w-full max-w-[60px] sm:block"></span>
+                  <span className="hidden h-[1px] w-full max-w-[60px] sm:block bg-body-color/50"></span>
                 </div>
+                
                 <form>
                   <div className="mb-8">
-                    <label
-                      htmlFor="name"
-                      className="text-dark mb-3 block text-sm dark:text-white"
-                    >
+                    <label htmlFor="name" className="mb-3 block text-sm text-dark dark:text-white">
                       Full Name
                     </label>
                     <input
@@ -203,27 +201,19 @@ const SignupPage = () => {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Enter your full name"
-                      className="border-stroke dark:text-body-color-dark dark:shadow-two text-body-color focus:border-primary dark:focus:border-primary w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base outline-hidden transition-all duration-300 dark:border-transparent dark:bg-[#2C303B] dark:focus:shadow-none"
+                      className="w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base transition-all duration-300 outline-hidden border-stroke dark:border-transparent dark:bg-[#2C303B] dark:shadow-two dark:text-body-color-dark focus:border-primary dark:focus:border-primary"
                     />
                   </div>
-                
+                  
                   <div className="mb-8">
-                    <label
-                      htmlFor="contact"
-                      className="text-dark mb-3 block text-sm dark:text-white"
-                    >
+                    <label htmlFor="contact" className="mb-3 block text-sm text-dark dark:text-white">
                       Contact Number
                     </label>
-                    <MobileNumberInput 
-                      onChange={(value) => setPhoneNumber(value)} 
-                    />
+                    <MobileNumberInput onChange={(value) => setPhoneNumber(value)} />
                   </div>
-
+                  
                   <div className="mb-8">
-                    <label
-                      htmlFor="email"
-                      className="text-dark mb-3 block text-sm dark:text-white"
-                    >
+                    <label htmlFor="email" className="mb-3 block text-sm text-dark dark:text-white">
                       Work Email
                     </label>
                     <input
@@ -233,15 +223,12 @@ const SignupPage = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your Email"
-                      className="border-stroke dark:text-body-color-dark dark:shadow-two text-body-color focus:border-primary dark:focus:border-primary w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base outline-hidden transition-all duration-300 dark:border-transparent dark:bg-[#2C303B] dark:focus:shadow-none"
+                      className="w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base transition-all duration-300 outline-hidden border-stroke dark:border-transparent dark:bg-[#2C303B] dark:shadow-two dark:text-body-color-dark focus:border-primary dark:focus:border-primary"
                     />
                   </div>
-                 
+                  
                   <div className="mb-8">
-                    <label
-                      htmlFor="password"
-                      className="text-dark mb-3 block text-sm dark:text-white"
-                    >
+                    <label htmlFor="password" className="mb-3 block text-sm text-dark dark:text-white">
                       Your Password
                     </label>
                     <div className="relative">
@@ -252,7 +239,7 @@ const SignupPage = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your Password"
-                        className="border-stroke dark:text-body-color-dark dark:shadow-two text-body-color focus:border-primary dark:focus:border-primary w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base outline-hidden transition-all duration-300 dark:border-transparent dark:bg-[#2C303B] dark:focus:shadow-none"
+                        className="w-full rounded-xs border bg-[#f8f8f8] px-6 py-3 text-base transition-all duration-300 outline-hidden border-stroke dark:border-transparent dark:bg-[#2C303B] dark:shadow-two dark:text-body-color-dark focus:border-primary dark:focus:border-primary"
                       />
                       <button
                         type="button"
@@ -261,41 +248,24 @@ const SignupPage = () => {
                         aria-label={isPasswordVisible ? "Hide password" : "Show password"}
                       >
                         {isPasswordVisible ? (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
-                              clipRule="evenodd"
-                            />
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
                             <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
                           </svg>
                         ) : (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                            <path
-                              fillRule="evenodd"
-                              d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                              clipRule="evenodd"
-                            />
+                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                           </svg>
                         )}
                       </button>
                     </div>
                   </div>
+                  
                   <div className="mb-8 flex">
                     <label
                       htmlFor="checkboxLabel"
-                      className="text-body-color flex cursor-pointer text-sm font-medium select-none"
+                      className="flex cursor-pointer select-none text-sm font-medium text-body-color"
                     >
                       <div className="relative">
                         <input
@@ -305,51 +275,39 @@ const SignupPage = () => {
                           onChange={(e) => setAgreeToTerms(e.target.checked)}
                           className="sr-only"
                         />
-                        <div className={`box border-body-color/20 mt-1 mr-4 flex h-5 w-5 items-center justify-center rounded-sm border dark:border-white/10 ${agreeToTerms ? 'bg-primary' : ''}`}>
-                          <span className={agreeToTerms ? 'opacity-100' : 'opacity-0'}>
-                            <svg
-                              width="11"
-                              height="8"
-                              viewBox="0 0 11 8"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M10.0915 0.951972L10.0867 0.946075L10.0813 0.940568C9.90076 0.753564 9.61034 0.753146 9.42927 0.939309L4.16201 6.22962L1.58507 3.63469C1.40401 3.44841 1.11351 3.44879 0.932892 3.63584C0.755703 3.81933 0.755703 4.10875 0.932892 4.29224L0.932878 4.29225L0.934851 4.29424L3.58046 6.95832C3.73676 7.11955 3.94983 7.2 4.1473 7.2C4.36196 7.2 4.55963 7.11773 4.71406 6.9584L10.0468 1.60234C10.2436 1.4199 10.2421 1.1339 10.0915 0.951972ZM4.2327 6.30081L4.2317 6.2998C4.23206 6.30015 4.23237 6.30049 4.23269 6.30082L4.2327 6.30081Z"
-                                fill="white"
-                                stroke="white"
-                                strokeWidth="0.4"
-                              />
+                        <div
+                          className={`mt-1 mr-4 flex h-5 w-5 items-center justify-center rounded-sm border dark:border-white/10 border-body-color/20 ${
+                            agreeToTerms ? "bg-primary" : ""
+                          }`}
+                        >
+                          <span className={agreeToTerms ? "opacity-100" : "opacity-0"}>
+                            <svg width="11" height="8" viewBox="0 0 11 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M10.0915 0.951972L10.0867 0.946075L10.0813 0.940568C9.90076 0.753564 9.61034 0.753146 9.42927 0.939309L4.16201 6.22962L1.58507 3.63469C1.40401 3.44841 1.11351 3.44879 0.932892 3.63584C0.755703 3.81933 0.755703 4.10875 0.932892 4.29224L0.932878 4.29225L0.934851 4.29424L3.58046 6.95832C3.73676 7.11955 3.94983 7.2 4.1473 7.2C4.36196 7.2 4.55963 7.11773 4.71406 6.9584L10.0468 1.60234C10.2436 1.4199 10.2421 1.1339 10.0915 0.951972ZM4.2327 6.30081L4.2317 6.2998C4.23206 6.30015 4.23237 6.30049 4.23269 6.30082L4.2327 6.30081Z" fill="white" stroke="white" strokeWidth="0.4"/>
                             </svg>
                           </span>
                         </div>
                       </div>
                       <span>
-                        By creating account means you agree to the
-                        <a href="#0" className="text-primary hover:underline">
-                          {" "}
-                          Terms and Conditions{" "}
-                        </a>
-                        , and our
-                        <a href="#0" className="text-primary hover:underline">
-                          {" "}
-                          Privacy Policy{" "}
-                        </a>
+                        By creating an account, you agree to our 
+                        <a href="#0" className="text-primary hover:underline"> Terms and Conditions </a>
+                        and 
+                        <a href="#0" className="text-primary hover:underline"> Privacy Policy </a>
                       </span>
                     </label>
                   </div>
+                  
                   <div className="mb-6">
                     <button
                       type="button"
                       onClick={handleSignup}
                       disabled={loading}
-                      className="shadow-submit dark:shadow-submit-dark bg-primary hover:bg-primary/90 flex w-full items-center justify-center rounded-xs px-9 py-4 text-base font-medium text-white duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="w-full rounded-xs px-9 py-4 text-base font-medium text-white transition duration-300 ease-in-out shadow-submit dark:shadow-submit-dark bg-primary hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                       {loading ? "Creating Account..." : "Sign up"}
                     </button>
                   </div>
                 </form>
-                <p className="text-body-color text-center text-base font-medium">
+                <p className="text-center text-base font-medium text-body-color">
                   Already using Startup?{" "}
                   <Link href="/signin" className="text-primary hover:underline">
                     Sign in

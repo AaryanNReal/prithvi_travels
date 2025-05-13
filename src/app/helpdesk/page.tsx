@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/app/lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy, where, updateDoc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { FirebaseFileUploader } from '@/components/FirebaseFileUploader';
@@ -10,8 +10,9 @@ interface Ticket {
   id: string;
   helpdeskID: string;
   category: string;
-  status: 'Opened' | 'Resolved' | 'Reopened' | 'Closed';
+  status: 'Opened' | 'Resolved' | 'Reopened' | 'Closed' | 'PendingClosure';
   createdAt: any;
+  resolvedAt?: any;
   updatedAt?: any;
   responses: {
     opened: {
@@ -55,6 +56,7 @@ const HelpDeskPage = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [showError, setShowError] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const router = useRouter();
 
   // Form state
@@ -67,13 +69,12 @@ const HelpDeskPage = () => {
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // Check auth state and fetch tickets
+  // Check auth state
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        await fetchTickets();
       } else {
         router.push('/signup');
       }
@@ -82,6 +83,15 @@ const HelpDeskPage = () => {
 
     return () => unsubscribe();
   }, [router]);
+
+  // Fetch tickets and check for pending closures
+  useEffect(() => {
+    if (user) {
+      fetchTickets();
+      const interval = setInterval(() => checkPendingClosures(), 60000); // Check every minute
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   // Validate form
   useEffect(() => {
@@ -116,7 +126,11 @@ const HelpDeskPage = () => {
   const fetchTickets = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'helpdesk'), orderBy('createdAt', 'desc'));
+      const q = query(
+        collection(db, 'helpdesk'),
+        where('userDetails.uid', '==', user?.uid),
+        orderBy('createdAt', 'desc')
+      );
       const querySnapshot = await getDocs(q);
       
       const ticketList: Ticket[] = [];
@@ -128,6 +142,7 @@ const HelpDeskPage = () => {
           category: data.category,
           status: data.status || 'Opened',
           createdAt: data.createdAt,
+          resolvedAt: data.resolvedAt,
           updatedAt: data.updatedAt,
           responses: data.responses || {
             opened: {
@@ -154,6 +169,46 @@ const HelpDeskPage = () => {
       setTimeout(() => setShowError(false), 5000);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkPendingClosures = async () => {
+    try {
+      const now = new Date();
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      
+      const q = query(
+        collection(db, 'helpdesk'),
+        where('status', '==', 'Resolved'),
+        where('resolvedAt', '<=', threeDaysAgo)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const batchUpdates: Promise<void>[] = [];
+
+      querySnapshot.forEach((doc) => {
+        const ticketRef = doc.ref;
+        batchUpdates.push(
+          updateDoc(ticketRef, {
+            status: 'Closed',
+            updatedAt: serverTimestamp(),
+            responses: {
+              ...doc.data().responses,
+              closed: {
+                response: 'Ticket automatically closed after 3 days of resolution',
+                createdAt: serverTimestamp()
+              }
+            }
+          })
+        );
+      });
+
+      await Promise.all(batchUpdates);
+      if (batchUpdates.length > 0) {
+        await fetchTickets(); // Refresh tickets if any were closed
+      }
+    } catch (error) {
+      console.error('Error checking pending closures:', error);
     }
   };
 
@@ -187,6 +242,14 @@ const HelpDeskPage = () => {
       description: '',
       form: ''
     });
+  };
+
+  const showTicketDetails = (ticket: Ticket) => {
+    setSelectedTicket(ticket);
+  };
+
+  const closeTicketDetails = () => {
+    setSelectedTicket(null);
   };
 
   const handleUploadSuccess = (url: string) => {
@@ -267,16 +330,17 @@ const HelpDeskPage = () => {
     try {
       const ticketRef = doc(db, 'helpdesk', ticketId);
       
-      await setDoc(ticketRef, {
+      await updateDoc(ticketRef, {
         status: "Reopened",
         updatedAt: serverTimestamp(),
         responses: {
+          ...tickets.find(t => t.id === ticketId)?.responses,
           reopened: {
             response: "Ticket reopened by user",
             createdAt: serverTimestamp()
           }
         }
-      }, { merge: true });
+      });
 
       setSuccessMessage('Ticket reopened successfully!');
       setShowSuccess(true);
@@ -292,34 +356,38 @@ const HelpDeskPage = () => {
     }
   };
 
-  const handleDeleteTicket = async (ticketId: string) => {
-    if (!window.confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) return;
-    
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, 'helpdesk', ticketId));
-      setSuccessMessage('Ticket deleted successfully!');
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 5000);
-      await fetchTickets();
-    } catch (error) {
-      console.error('Error deleting ticket: ', error);
-      setErrorMessage('Failed to delete ticket');
-      setShowError(true);
-      setTimeout(() => setShowError(false), 5000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Opened': return 'bg-blue-100 text-blue-800';
       case 'Resolved': return 'bg-green-100 text-green-800';
       case 'Reopened': return 'bg-orange-100 text-orange-800';
       case 'Closed': return 'bg-red-100 text-red-800';
+      case 'PendingClosure': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const getTimeRemaining = (resolvedAt: any) => {
+    if (!resolvedAt) return '';
+    const resolvedDate = resolvedAt.toDate();
+    const closureDate = new Date(resolvedDate.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    
+    if (now > closureDate) return 'Closed soon';
+    
+    const diff = closureDate.getTime() - now.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `Closes in ${hours}h ${minutes}m`;
+  };
+
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    if (date.toDate) {
+      return date.toDate().toLocaleString();
+    }
+    return date;
   };
 
   if (authLoading) {
@@ -366,7 +434,7 @@ const HelpDeskPage = () => {
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Help Desk Tickets</h1>
+          <h1 className="text-2xl font-bold text-gray-800">My Help Desk Tickets</h1>
           <button
             onClick={showModal}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
@@ -385,7 +453,6 @@ const HelpDeskPage = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Initial Message</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -394,7 +461,7 @@ const HelpDeskPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center">
+                  <td colSpan={6} className="px-6 py-4 text-center">
                     <div className="flex justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                     </div>
@@ -402,7 +469,7 @@ const HelpDeskPage = () => {
                 </tr>
               ) : tickets.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                     No tickets found
                   </td>
                 </tr>
@@ -412,12 +479,16 @@ const HelpDeskPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{ticket.helpdeskID}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{ticket.category}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
-                        {ticket.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                      {ticket.userDetails.name} ({ticket.userDetails.email})
+                      <div className="flex items-center">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
+                          {ticket.status}
+                        </span>
+                        {ticket.status === 'Resolved' && ticket.resolvedAt && (
+                          <span className="ml-2 text-xs text-gray-500">
+                            {getTimeRemaining(ticket.resolvedAt)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                       {ticket.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleString() : 'N/A'}
@@ -427,7 +498,7 @@ const HelpDeskPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        {ticket.status === 'Closed' && (
+                        {(ticket.status === 'Resolved' || ticket.status === 'Closed') && (
                           <button
                             onClick={() => handleReopenTicket(ticket.id)}
                             className="text-indigo-600 hover:text-indigo-900"
@@ -436,10 +507,10 @@ const HelpDeskPage = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => handleDeleteTicket(ticket.id)}
-                          className="text-red-600 hover:text-red-900"
+                          onClick={() => showTicketDetails(ticket)}
+                          className="text-blue-600 hover:text-blue-900"
                         >
-                          Delete
+                          View
                         </button>
                       </div>
                     </td>
@@ -514,7 +585,6 @@ const HelpDeskPage = () => {
                   maxSizeMB={5}
                   onUploadSuccess={handleUploadSuccess}
                   onUploadError={handleUploadError}
-                  buttonText="Upload Attachment"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Supported formats: JPG, PNG, PDF, DOC, DOCX (Max 5MB)
@@ -544,6 +614,140 @@ const HelpDeskPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Details Overlay */}
+      {selectedTicket && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-800">Ticket Details</h2>
+              <button
+                onClick={closeTicketDetails}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Ticket ID</h3>
+                  <p className="mt-1 text-sm text-gray-900">{selectedTicket.helpdeskID}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Status</h3>
+                  <p className="mt-1">
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(selectedTicket.status)}`}>
+                      {selectedTicket.status}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Category</h3>
+                  <p className="mt-1 text-sm text-gray-900">{selectedTicket.category}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Created At</h3>
+                  <p className="mt-1 text-sm text-gray-900">{formatDate(selectedTicket.createdAt)}</p>
+                </div>
+                {selectedTicket.resolvedAt && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Resolved At</h3>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate(selectedTicket.resolvedAt)}</p>
+                  </div>
+                )}
+                {selectedTicket.updatedAt && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Last Updated</h3>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate(selectedTicket.updatedAt)}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-500">Initial Message</h3>
+                <div className="mt-1 p-3 bg-gray-50 rounded-md">
+                  <p className="text-sm text-gray-900 whitespace-pre-line">{selectedTicket.responses.opened.response}</p>
+                  {selectedTicket.responses.opened.attachmentURL && (
+                    <div className="mt-2">
+                      <a 
+                        href={selectedTicket.responses.opened.attachmentURL} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                        </svg>
+                        View Attachment
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedTicket.responses.resolved && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-500">Resolution Response</h3>
+                  <div className="mt-1 p-3 bg-green-50 rounded-md">
+                    <p className="text-sm text-gray-900 whitespace-pre-line">{selectedTicket.responses.resolved.response}</p>
+                    {selectedTicket.responses.resolved.attachmentURL && (
+                      <div className="mt-2">
+                        <a 
+                          href={selectedTicket.responses.resolved.attachmentURL} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                          </svg>
+                          View Attachment
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedTicket.responses.reopened && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-500">Reopened Response</h3>
+                  <div className="mt-1 p-3 bg-orange-50 rounded-md">
+                    <p className="text-sm text-gray-900 whitespace-pre-line">{selectedTicket.responses.reopened.response}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedTicket.responses.closed && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-500">Closure Response</h3>
+                  <div className="mt-1 p-3 bg-red-50 rounded-md">
+                    <p className="text-sm text-gray-900 whitespace-pre-line">{selectedTicket.responses.closed.response}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                {(selectedTicket.status === 'Resolved' || selectedTicket.status === 'Closed') && (
+                  <button
+                    onClick={() => {
+                      closeTicketDetails();
+                      handleReopenTicket(selectedTicket.id);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Reopen Ticket
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

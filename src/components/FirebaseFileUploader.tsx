@@ -29,7 +29,7 @@ const secondaryApp = getApps().find(app => app.name === SECONDARY_APP_NAME) ||
 const secondaryStorage = getStorage(secondaryApp);
 
 export const FirebaseFileUploader = ({
-  storagePath = 'uploads',
+  storagePath = 'queries',
   accept = '*',
   maxSizeMB = 10,
   onUploadSuccess,
