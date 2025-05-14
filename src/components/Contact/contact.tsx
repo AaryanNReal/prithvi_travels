@@ -70,7 +70,7 @@ export default function ContactPage() {
           console.error('Failed to load user data:', error);
         }
       } else {
-        router.push('/signup');
+      
       }
       setLoading(prev => ({ ...prev, auth: false }));
     });

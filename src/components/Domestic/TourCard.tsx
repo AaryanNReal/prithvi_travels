@@ -54,7 +54,7 @@ const TourCard: React.FC<TourCardProps> = ({
     }
   };
 
-  const isPexelsImage = imageURL.includes('pexels.com');
+  
 
   return (
     <Link 
@@ -72,6 +72,7 @@ const TourCard: React.FC<TourCardProps> = ({
       `}>
         {/* Image with badges */}
         <div className="relative h-64 w-full"> {/* Increased height to h-64 */}
+          { imageURL && (
           <Image
             src={imageURL}
             alt={title}
@@ -79,7 +80,10 @@ const TourCard: React.FC<TourCardProps> = ({
             height={500} // Increased height
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             priority={isFeatured}
+            
           />
+          )}
+          {/* Featured badge */}
           
           {/* Category badge */}
           <span className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-medium px-2.5 py-1 rounded-full shadow">

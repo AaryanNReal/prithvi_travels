@@ -217,9 +217,8 @@ const HelpDeskPage = () => {
     return `HID${timestamp.slice(-8)}`;
   };
 
-  const generateUserID = () => {
-    return `UID${Math.floor(Date.now() / 1000)}`;
-  };
+  
+ 
 
   const showModal = () => {
     setIsModalOpen(true);
@@ -282,7 +281,15 @@ const HelpDeskPage = () => {
     setLoading(true);
     try {
       const ticketId = generateTicketID();
-      const userId = generateUserID();
+      let fetchedUserID = "";
+       const usersQuery = query(
+    collection(db, "users"),
+    where("uid", "==", user.uid)
+  );
+  const usersSnapshot = await getDocs(usersQuery);
+  if (!usersSnapshot.empty) {
+    fetchedUserID = usersSnapshot.docs[0].data().userID;
+  }
       const ticketRef = doc(db, 'helpdesk', ticketId);
       
       const ticketData = {
@@ -303,7 +310,7 @@ const HelpDeskPage = () => {
           email: user.email || '',
           phone: user.phoneNumber || '',
           uid: user.uid,
-          userID: userId
+          userID: fetchedUserID
         }
       };
 

@@ -5,7 +5,7 @@ import React, { useState } from "react";
 import MobileNumberInput from "@/components/PhoneInput";
 import { signInWithPopup, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, provider } from "../lib/firebase"; 
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 const SignupPage = () => {
@@ -24,7 +24,8 @@ const SignupPage = () => {
     setPhoneNumber(value);
   };
 
-  // Sign up using email/password. If a user document with the same uid already exists, do not create a new one.
+  // Sign up using email/password.
+  // Create a new user document with a custom document ID: UID{timestamp}
   const handleSignup = async () => {
     setError("");
     setSuccess("");
@@ -54,20 +55,22 @@ const SignupPage = () => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      const userDocRef = doc(db, "users", user.uid);
+
+      // Create custom document ID instead of using user.uid
+      const timestampUID = `UID${Date.now()}`;
+      // Create a custom document reference in "users" collection
+      const userDocRef = doc(collection(db, "users"), timestampUID);
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
-        // Generate timestamp-based custom UID
-        const timestampUID = `UID${Date.now()}`;
         await setDoc(userDocRef, {
-          userID: timestampUID, // Store custom UID in field userID
+          userID: timestampUID, // custom document id saved in field userID
           email,
           name: fullName,
           phone: phoneNumber,
+          uid: user.uid, // original firebase uid for reference
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          uid: user.uid, // original firebase uid for reference
         });
       }
       setSuccess(`Account successfully created for ${email}`);
@@ -86,26 +89,27 @@ const SignupPage = () => {
     }
   };
 
-  // Sign in with Google. Check if a user document for that Firebase UID exists.
+  // Sign in with Google.
+  // Create a new user document with a custom document ID if one doesn’t already exist.
   const signInWithGoogle = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      const userDocRef = doc(db, "users", user.uid);
+      // Create custom document ID
+      const timestampUID = `UID${Date.now()}`;
+      // Create a reference with the custom ID
+      const userDocRef = doc(collection(db, "users"), timestampUID);
       const userDoc = await getDoc(userDocRef);
-
       if (!userDoc.exists()) {
-        // Generate timestamp-based custom UID
-        const timestampUID = `UID${Date.now()}`;
         await setDoc(userDocRef, {
-          userID: timestampUID, // Store custom UID in field userID
+          userID: timestampUID,
           email: user.email,
           name: user.displayName || "",
           photoURL: user.photoURL || "",
           provider: "google",
+          uid: user.uid,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          uid: user.uid,
         });
       }
       router.push("/");
