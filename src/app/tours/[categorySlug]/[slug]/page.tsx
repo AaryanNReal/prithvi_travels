@@ -1,21 +1,20 @@
-// app/tours/[slug]/page.tsx
 'use client';
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { db, auth } from '@/app/lib/firebase';
-import { collection, getDocs, query, where, doc, getDoc , serverTimestamp , setDoc} from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import Image from 'next/image';
 import { CalendarIcon, MapPinIcon, CurrencyRupeeIcon, TagIcon, UserIcon, PhoneIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import MobileNumberInput from '@/components/PhoneInput';
+import { getAuth } from 'firebase/auth';
 interface ItineraryDay {
   title: string;
   description: string;
   imageURL: string[];
 }
-
 
 interface CategoryDetails {
   categoryID: string;
@@ -62,6 +61,16 @@ interface UserData {
   name?: string;
   email?: string;
   phone?: string;
+  userID?: string;
+  uid?: string;
+}
+
+interface FormData {
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  userID: string;
 }
 
 export default function TourDetailPage() {
@@ -72,11 +81,12 @@ export default function TourDetailPage() {
   const [relatedTours, setRelatedTours] = useState<RelatedTour[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
     phone: '',
-    message: ''
+    message: '',
+    userID: ''
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -84,26 +94,63 @@ export default function TourDetailPage() {
 
   const slug = decodeURIComponent(params.slug as string);
 
+  // Enhanced authentication handler
   useEffect(() => {
+    const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
       if (currentUser) {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data() as UserData);
-          setFormData(prev => ({
-            ...prev,
-            name: userDoc.data()?.name || currentUser.displayName || '',
+        try {
+          // Query users collection for matching document
+          const usersQuery = query(
+            collection(db, 'users'),
+            where('uid', '==', currentUser.uid)
+          );
+          const querySnapshot = await getDocs(usersQuery);
+
+          if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            const userData = userDoc.data() as UserData;
+            setUserData(userData);
+            
+            setFormData({
+              name: userData.name || currentUser.displayName || '',
+              email: currentUser.email || '',
+              phone: userData.phone || '',
+              message: '',
+              userID: userData.userID || currentUser.uid
+            });
+          } else {
+            // No user document found
+            setFormData({
+              name: currentUser.displayName || '',
+              email: currentUser.email || '',
+              phone: '',
+              message: '',
+              userID: currentUser.uid
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          setFormData({
+            name: currentUser.displayName || '',
             email: currentUser.email || '',
-            phone: userDoc.data()?.phone || ''
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            email: currentUser.email || '',
-            name: currentUser.displayName || ''
-          }));
+            phone: '',
+            message: '',
+            userID: currentUser.uid
+          });
         }
+      } else {
+        // User logged out - reset form
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          message: '',
+          userID: ''
+        });
+        setUserData(null);
       }
       setLoadingUser(false);
     });
@@ -111,21 +158,26 @@ export default function TourDetailPage() {
     return () => unsubscribe();
   }, []);
 
+  // Fetch tour and related data
   useEffect(() => {
-    const fetchTourAndRelated = async () => {
+    const fetchTourData = async () => {
       try {
         setLoading(true);
-        const toursRef = collection(db, 'tours');
-        const q = query(toursRef, where('slug', '==', slug));
-        const querySnapshot = await getDocs(q);
+        
+        // Fetch main tour
+        const toursQuery = query(
+          collection(db, 'tours'),
+          where('slug', '==', slug)
+        );
+        const tourSnapshot = await getDocs(toursQuery);
 
-        if (querySnapshot.empty) {
+        if (tourSnapshot.empty) {
           setError('Tour not found');
           return;
         }
 
-        const doc = querySnapshot.docs[0];
-        const tourData = doc.data() as Tour;
+        const tourDoc = tourSnapshot.docs[0];
+        const tourData = tourDoc.data() as Tour;
 
         if (tourData.status && tourData.status !== 'active') {
           setError('Tour is not available');
@@ -134,13 +186,13 @@ export default function TourDetailPage() {
 
         setTour({
           ...tourData,
-          id: doc.id
+          id: tourDoc.id
         });
 
-        // Fetch related tours from the same category
+        // Fetch related tours
         if (tourData.categoryDetails?.categoryID) {
           const relatedQuery = query(
-            toursRef,
+            collection(db, 'tours'),
             where('categoryDetails.categoryID', '==', tourData.categoryDetails.categoryID),
             where('status', '==', 'active'),
             where('slug', '!=', slug)
@@ -156,28 +208,26 @@ export default function TourDetailPage() {
           setRelatedTours(related);
         }
 
-        // Fetch all unique categories
-        const allToursSnapshot = await getDocs(toursRef);
-        const categoriesMap = new Map<string, CategoryDetails>();
-        
-        allToursSnapshot.forEach(tourDoc => {
+        // Fetch all categories
+        const allTours = await getDocs(collection(db, 'tours'));
+        const uniqueCategories = new Map<string, CategoryDetails>();
+        allTours.forEach(tourDoc => {
           const tour = tourDoc.data() as Tour;
           if (tour.categoryDetails) {
-            categoriesMap.set(tour.categoryDetails.categoryID, tour.categoryDetails);
+            uniqueCategories.set(tour.categoryDetails.categoryID, tour.categoryDetails);
           }
         });
-
-        setCategories(Array.from(categoriesMap.values()));
+        setCategories(Array.from(uniqueCategories.values()));
 
       } catch (err) {
-        console.error('Error fetching tour:', err);
-        setError('Failed to load tour');
+        console.error('Error loading tour:', err);
+        setError('Failed to load tour details');
       } finally {
         setLoading(false);
       }
     };
 
-    if (slug) fetchTourAndRelated();
+    if (slug) fetchTourData();
   }, [slug]);
 
   const formatDate = (dateString: string) => {
@@ -188,7 +238,7 @@ export default function TourDetailPage() {
         month: 'long',
         day: 'numeric'
       });
-    } catch (error) {
+    } catch {
       return 'Date not specified';
     }
   };
@@ -201,63 +251,38 @@ export default function TourDetailPage() {
     }).format(price);
   };
 
- const handleInputChange = (e: React.ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => {
-  const { name, value } = e.target;
-  setFormData({
-    ...formData,
-    [name]: value
-  });
-};
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-interface UserData {
-  name?: string;
-  email?: string;
-  phone?: string;
-  userID?: string;
-}
+  const handlePhoneChange = (value: string) => {
+    setFormData(prev => ({ ...prev, phone: value }));
+  };
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  try {
-    const timestamp = Date.now();
-    const bookingId = `PTID-${timestamp}`;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const bookingId = `PTID-${Date.now()}`;
+      
+      await setDoc(doc(db, 'bookings', bookingId), {
+        ...formData,
+        tourId: tour?.id,
+        tourTitle: tour?.title,
+        category: tour?.categoryDetails?.name,
+        createdAt: serverTimestamp(),
+        bookingId,
+        status: 'pending'
+      });
 
-    // Fetch user document data from the 'users' collection
-    let storedUserData: Partial<UserData> = {};
-    if (user) {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        storedUserData = userDoc.data() as UserData;
-      }
+      setFormSubmitted(true);
+      setFormData(prev => ({ ...prev, message: '' }));
+      
+      setTimeout(() => setFormSubmitted(false), 3000);
+    } catch (error) {
+      console.error('Booking submission failed:', error);
     }
-
-    const bookingData = {
-      ...formData,
-      tourId: tour?.id,
-      tourTitle: tour?.title,
-      category: tour?.categoryDetails?.name,
-      createdAt: serverTimestamp(),
-      bookingId,
-      // Use the custom userID from the users collection if available; otherwise, fallback to user.uid
-      userID: storedUserData.userID || user?.uid || null,
-      // Include user details for consistency:
-      userName: storedUserData.name || formData.name || '',
-      userEmail: storedUserData.email || formData.email || ''
-    };
-
-    await setDoc(doc(db, 'bookings', bookingId), bookingData);
-
-    setFormSubmitted(true);
-    setTimeout(() => {
-      setFormSubmitted(false);
-    }, 3000);
-  } catch (error) {
-    console.error('Error submitting form:', error);
-  }
-};
-
-
-
+  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -348,8 +373,6 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
 
-        
-        
         <h1 className='text-2xl font-bold mt-8 text-gray-800'>Tour Itinerary</h1>
         <div className='m-4'>
           <div className="space-y-6">
@@ -389,6 +412,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             )}
           </div>
         </div>
+        
         {tagKeys.length > 0 && (
           <div className="m-4">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
@@ -411,12 +435,11 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
           </div>
         )}
-
-       </div>
+      </div>
       
       {/* Sidebar */}
       <div className="md:w-1/3 space-y-6 mt-16">
-       <div className="mt-12  bg-white rounded-lg shadow-md p-6">
+        <div className="mt-12 bg-white rounded-lg shadow-md p-6">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Request More Information</h2>
           
           {formSubmitted ? (
@@ -452,9 +475,9 @@ const handleSubmit = async (e: React.FormEvent) => {
                           <PhoneIcon className="h-5 w-5 text-gray-400" />
                         </div>
                         <MobileNumberInput 
-  value={formData.phone}
-  onChange={(value) => setFormData({...formData, phone: value})}
-/>
+                          value={formData.phone}
+                          onChange={handlePhoneChange}
+                        />
                       </div>
                     </div>
                   )}
@@ -511,10 +534,10 @@ const handleSubmit = async (e: React.FormEvent) => {
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <PhoneIcon className="h-5 w-5 text-gray-400" />
                       </div>
-       <MobileNumberInput 
-  value={formData.phone}
-  onChange={(value) => setFormData({...formData, phone: value})}
-/>
+                      <MobileNumberInput 
+                        value={formData.phone}
+                        onChange={handlePhoneChange}
+                      />
                     </div>
                   </div>
                 </>

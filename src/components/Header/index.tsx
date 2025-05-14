@@ -208,7 +208,7 @@ const Header = () => {
       
       items={[
         { label: "Profile", href: "/profile" },
-        { label: "My Bookings", href: "/my-bookings" },
+        { label: "My Bookings", href: "/mybooking" },
         { label: "Help Desk", href: "/helpdesk" },
         { label: "Sign Out", onClick: handleSignOut },
       ]}

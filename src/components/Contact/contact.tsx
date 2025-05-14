@@ -260,14 +260,22 @@ export default function ContactPage() {
 
             <div>
               <label className="block mb-2">Attachment</label>
-              <FirebaseFileUploader
-                storagePath="queries"
-                maxSizeMB={5}
-                onUploadStart={handleUploadStart}
-                onUploadSuccess={handleUploadSuccess}
-                onUploadError={handleUploadError}
-                disabled={loading.upload}
-              />
+             <FirebaseFileUploader
+  storagePath="queries"  // Custom storage path in Firebase
+  accept=".pdf,.doc,.docx,.jpg,.png"  // Specific file types
+  maxSizeMB={15}  // 15MB file size limit
+  disabled={false}  // Enable/disable the uploader
+  onUploadStart={() => console.log('Upload started')}
+  onUploadSuccess={(url, type) => {
+    console.log('Upload success! URL:', url);
+    console.log('File type:', type);
+    // Update your state or database here
+  }}
+  onUploadError={(error) => {
+    console.error('Upload failed:', error);
+    // Show error message to user
+  }}
+/>
             </div>
 
             <div>

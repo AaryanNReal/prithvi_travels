@@ -36,18 +36,19 @@ interface Cruise {
   updatedAt?: string;
 }
 
-interface CategoryDetails {
-  categoryID: string;
-  name: string;
-  slug: string;
-  description?: string;
-}
-
 interface UserData {
   name?: string;
   email?: string;
   phone?: string;
   userID?: string;
+}
+
+interface FormData {
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  userID: string;
 }
 
 export default function CruiseDetailPage() {
@@ -57,13 +58,12 @@ export default function CruiseDetailPage() {
   const [cruise, setCruise] = useState<Cruise | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Booking form state & handlers
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
     phone: '',
-    message: ''
+    message: '',
+    userID: ''
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -72,38 +72,76 @@ export default function CruiseDetailPage() {
 
   const slug = decodeURIComponent(params.slug as string);
 
+  // Enhanced auth state handler with query-based user data fetching
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
       if (currentUser) {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data() as UserData);
-          setFormData(prev => ({
-            ...prev,
-            name: userDoc.data()?.name || currentUser.displayName || '',
-            email: currentUser.email || '',
-            phone: userDoc.data()?.phone || ''
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
+        try {
+          // Query users collection where uid matches auth user
+          const usersQuery = query(
+            collection(db, 'users'),
+            where('uid', '==', currentUser.uid)
+          );
+          const querySnapshot = await getDocs(usersQuery);
+
+          if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            const data = userDoc.data() as UserData;
+            setUserData(data);
+            
+            setFormData({
+              name: data.name || currentUser.displayName || '',
+              email: currentUser.email || '',
+              phone: data.phone || '',
+              message: '',
+              userID: data.userID || currentUser.uid
+            });
+          } else {
+            // No matching document found
+            setFormData({
+              name: currentUser.displayName || '',
+              email: currentUser.email || '',
+              phone: '',
+              message: '',
+              userID: currentUser.uid
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          setFormData({
             name: currentUser.displayName || '',
-            email: currentUser.email || ''
-          }));
+            email: currentUser.email || '',
+            phone: '',
+            message: '',
+            userID: currentUser.uid
+          });
         }
+      } else {
+        // User logged out - reset form
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          message: '',
+          userID: ''
+        });
+        setUserData(null);
       }
       setLoadingUser(false);
     });
 
     return () => unsubscribe();
   }, []);
-  
+
+  // Fetch cruise data
   useEffect(() => {
     const fetchCruise = async () => {
       if (!slug) return;
 
       try {
+        setLoading(true);
         const cruisesRef = collection(db, 'cruises');
         const q = query(cruisesRef, where('slug', '==', slug));
         const querySnapshot = await getDocs(q);
@@ -149,47 +187,36 @@ export default function CruiseDetailPage() {
     }).format(price);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePhoneChange = (value: string) => {
+    setFormData(prev => ({ ...prev, phone: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const timestamp = Date.now();
-      const bookingId = `PTID-${timestamp}`;
+      const bookingId = `PTID-${Date.now()}`;
       
-      // Fetch user document to get custom userID if set
-      let storedUserData: Partial<UserData> = {};
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          storedUserData = userDoc.data() as UserData;
-        }
-      }
-
-      const bookingData = {
+      await setDoc(doc(db, 'bookings', bookingId), {
         ...formData,
         cruiseId: cruise?.id,
         cruiseTitle: cruise?.title,
         category: cruise?.categoryDetails?.name,
         createdAt: serverTimestamp(),
         bookingId,
-        // Save custom userID from the users collection if available; otherwise fallback
-        userID: storedUserData.userID || user?.uid || null,
-        userName: storedUserData.name || formData.name || '',
-        userEmail: storedUserData.email || formData.email || ''
-      };
-
-      await setDoc(doc(db, 'bookings', bookingId), bookingData);
+        status: 'pending'
+      });
 
       setFormSubmitted(true);
-      setTimeout(() => {
-        setFormSubmitted(false);
-      }, 3000);
+      setFormData(prev => ({ ...prev, message: '' }));
+      
+      setTimeout(() => setFormSubmitted(false), 3000);
     } catch (error) {
-      console.error('Error submitting form:', error);
+      console.error('Booking submission failed:', error);
     }
   };
 
@@ -218,7 +245,7 @@ export default function CruiseDetailPage() {
     );
   }
 
- 
+  if (!cruise) return null;
 
   return (
     <>
@@ -337,7 +364,7 @@ export default function CruiseDetailPage() {
                           </div>
                           <MobileNumberInput 
                             value={formData.phone}
-                            onChange={(value) => setFormData({ ...formData, phone: value })}
+                            onChange={handlePhoneChange}
                           />
                         </div>
                       </div>
@@ -395,7 +422,7 @@ export default function CruiseDetailPage() {
                         </div>
                         <MobileNumberInput 
                           value={formData.phone}
-                          onChange={(value) => setFormData({ ...formData, phone: value })}
+                          onChange={handlePhoneChange}
                         />
                       </div>
                     </div>

@@ -587,12 +587,21 @@ const HelpDeskPage = () => {
                   Attachment (Optional)
                 </label>
                 <FirebaseFileUploader
-                  storagePath="helpdesk-attachments"
-                  accept="image/*,.pdf,.doc,.docx"
-                  maxSizeMB={5}
-                  onUploadSuccess={handleUploadSuccess}
-                  onUploadError={handleUploadError}
-                />
+  storagePath="helpdesk-attachments"  // Custom storage path in Firebase
+  accept=".pdf,.doc,.docx,.jpg,.png"  // Specific file types
+  maxSizeMB={15}  // 15MB file size limit
+  disabled={false}  // Enable/disable the uploader
+  onUploadStart={() => console.log('Upload started')}
+  onUploadSuccess={(url, type) => {
+    console.log('Upload success! URL:', url);
+    console.log('File type:', type);
+    // Update your state or database here
+  }}
+  onUploadError={(error) => {
+    console.error('Upload failed:', error);
+    // Show error message to user
+  }}
+/>
                 <p className="mt-1 text-xs text-gray-500">
                   Supported formats: JPG, PNG, PDF, DOC, DOCX (Max 5MB)
                 </p>
