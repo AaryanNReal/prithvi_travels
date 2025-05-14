@@ -227,7 +227,7 @@ const Footer = () => {
                 <ul>
                   <li>
                     <Link
-                      href="/"
+                      href="/directories/tours"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Tours
@@ -235,7 +235,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/"
+                      href="/directories/cruises"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Cruises
@@ -243,7 +243,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/Directories/blogs"
+                      href="/directories/blogs"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Blogs
@@ -259,7 +259,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/Directories/Categories"
+                      href="/directories/categories"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Category
@@ -267,7 +267,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/Directories/Tags"
+                      href="/directories/tags"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Tags
@@ -275,7 +275,7 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/Directories/Images"
+                      href="/directories/images"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Images
